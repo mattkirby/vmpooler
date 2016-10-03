@@ -36,14 +36,18 @@ module Vmpooler
       validate_token(backend)
     end
 
+    def initialize
+      $vsphere = {}
+    end
+
     def vsphere
-      @vsphere = Vmpooler::VsphereHelper
+      $vsphere['migrations'] = Vmpooler::VsphereHelper.new
     end
 
     def relocate_vm(vm)
-      vm_object = vsphere.find_vm(vm) || vsphere.find_vm_heavy(vm)
-      host = vsphere.find_least_used_compatible_host(vm_object)
-      vsphere.migrate_vm(vm_object, host)
+      vm_object = $vsphere['migrations'].find_vm(vm) || $vsphere['migrations'].find_vm_heavy(vm)
+      host = $vsphere['migrations'].find_least_used_compatible_host(vm_object)
+      $vsphere['migrations'].migrate_vm(vm_object, host)
     end
 
     def fetch_single_vm(template)
