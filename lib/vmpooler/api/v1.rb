@@ -36,7 +36,8 @@ module Vmpooler
       validate_token(backend)
     end
 
-    def initialize
+    def initialize(config)
+      $config = config
       $vsphere = {}
     end
 
