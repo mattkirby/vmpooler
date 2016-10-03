@@ -36,14 +36,30 @@ module Vmpooler
       validate_token(backend)
     end
 
+    def vsphere
+      @vsphere = Vmpooler::VsphereHelper
+    end
+
+    def relocate_vm(vm)
+      vm_object = vsphere.find_vm(vm) || vsphere.find_vm_heavy(vm)
+      host = vsphere.find_least_used_compatible_host(vm_object)
+      vsphere.migrate_vm(vm_object, host)
+    end
+
     def fetch_single_vm(template)
       vm = backend.spop('vmpooler__ready__' + template)
-      return [vm, template] if vm
+      if vm
+        relocate_vm(vm)
+        return [vm, template]
+      end
 
       aliases = Vmpooler::API.settings.config[:alias]
       if aliases && aliased_template = aliases[template]
         vm = backend.spop('vmpooler__ready__' + aliased_template)
-        return [vm, aliased_template] if vm
+        if vm
+          relocate_vm(vm)
+          return [vm, aliased_template]
+        end
       end
 
       [nil, nil]

@@ -203,27 +203,39 @@ module Vmpooler
         initialize
       end
 
-      hosts = {}
-      hosts_sort = {}
-
-      datacenter = @connection.serviceInstance.find_datacenter
-      datacenter.hostFolder.children.each do |folder|
-        next unless folder.name == cluster
-        folder.host.each do |host|
-          if
-            (host.overallStatus == 'green') &&
-            (!host.runtime.inMaintenanceMode)
-
-            hosts[host.name] = host
-            hosts_sort[host.name] = host.vm.length
+      source_host = vm.summary.runtime.host
+      cluster = source_host.parent
+      hosts = cluster.host
+      target_hosts = []
+      hosts.each do |host|
+        if not host.runtime.inMaintenanceMode
+          if host.overallStatus == 'green'
+           cpu_usage = host.summary.quickStats.overallCpuUsage
+           cpu_size = host.summary.hardware.cpuMhz * host.summary.hardware.numCpuCores
+           cpu_capacity = (cpu_usage.to_f / cpu_size.to_f) * 100
+           memory_usage = host.summary.quickStats.overallMemoryUsage
+           memory_size = host.summary.hardware.memorySize / 1024 / 1024
+           memory_capacity = (memory_usage.to_f / memory_size.to_f) * 100
+           if not cpu_capacity  > 90
+             if not memory_capacity > 90
+               utilization = cpu_capacity + memory_capacity
+               target_hosts << [ utilization, host ]
+             end
+           end
           end
         end
       end
-
-      hosts[hosts_sort.sort_by { |_k, v| v }[0][0]]
+      target_hosts.sort!
+      return target_hosts[0][1]
     end
 
     def find_least_used_compatible_host(vm)
+      begin
+        @connection.serviceInstance.CurrentTime
+      rescue
+        initialize
+      end
+
       source_host = vm.summary.runtime.host
       model = source_host.hardware.cpuPkg[0].description
       cluster = source_host.parent
