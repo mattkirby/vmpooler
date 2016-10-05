@@ -480,7 +480,8 @@ module Vmpooler
             (! $redis.sismember('vmpooler__ready__' + pool['name'], vm['name'])) &&
             (! $redis.sismember('vmpooler__pending__' + pool['name'], vm['name'])) &&
             (! $redis.sismember('vmpooler__completed__' + pool['name'], vm['name'])) &&
-            (! $redis.sismember('vmpooler__discovered__' + pool['name'], vm['name']))
+            (! $redis.sismember('vmpooler__discovered__' + pool['name'], vm['name'])) &&
+            (! $redis.sismember('vmpooler__migrating__' + pool['name'], vm['name']))
 
             $redis.sadd('vmpooler__discovered__' + pool['name'], vm['name'])
 

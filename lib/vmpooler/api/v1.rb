@@ -46,7 +46,9 @@ module Vmpooler
     def fetch_single_vm(template)
       vm = backend.spop('vmpooler__ready__' + template)
       if vm
+        backend.sadd('vmpooler__migrating__' + template, vm)
         relocate = relocate_vm(vm)
+        backend.srem('vmpooler__migrating__' + template, vm)
         return [vm, template]
       end
 
