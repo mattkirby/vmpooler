@@ -37,7 +37,7 @@ module Vmpooler
     end
 
     def relocate_vm(vm)
-      @vsphere ||= Vmpooler::VsphereHelper.new
+      vsphere = Vmpooler::VsphereHelper.new
       vm_object = vsphere.find_vm(vm) || vsphere.find_vm_heavy(vm)
       host = vsphere.find_least_used_compatible_host(vm_object)
       vsphere.migrate_vm(vm_object, host)
