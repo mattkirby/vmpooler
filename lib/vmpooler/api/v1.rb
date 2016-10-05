@@ -46,7 +46,7 @@ module Vmpooler
     def fetch_single_vm(template)
       vm = backend.spop('vmpooler__ready__' + template)
       if vm
-        relocate_vm(vm)
+#       relocate_vm(vm)
         return [vm, template]
       end
 
@@ -54,7 +54,7 @@ module Vmpooler
       if aliases && aliased_template = aliases[template]
         vm = backend.spop('vmpooler__ready__' + aliased_template)
         if vm
-          relocate_vm(vm)
+#          relocate_vm(vm)
           return [vm, aliased_template]
         end
       end
