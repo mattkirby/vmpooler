@@ -40,7 +40,7 @@ module Vmpooler
       vsphere = Vmpooler::VsphereHelper.new
       vm_object = vsphere.find_vm(vm) || vsphere.find_vm_heavy(vm)
       host = vsphere.find_least_used_compatible_host(vm_object)
-      vsphere.migrate_vm(vm_object, host)
+      vsphere.migrate_vm_host(vm_object, host)
     end
 
     def fetch_single_vm(template)
