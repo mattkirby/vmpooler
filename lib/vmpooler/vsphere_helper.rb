@@ -417,11 +417,7 @@ module Vmpooler
 
     def migrate_vm_host(vm, host)
       relospec = RbVmomi::VIM.VirtualMachineRelocateSpec(host: host)
-      if vm.RelocateVM_Task(spec: relospec).wait_for_completion
-        return True
-      else
-        return False
-      end
+      vm.RelocateVM_Task(spec: relospec).wait_for_completion
     end
 
     def close
