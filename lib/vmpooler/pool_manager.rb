@@ -582,12 +582,11 @@ module Vmpooler
 
       # MIGRATIONS
       $redis.smembers('vmpooler__migrating__' + pool['name']).each do |vm|
-        $vsphere['migrations'] ||= Vmpooler::VsphereHelper.new
-        $vsphere['migrations'] = Thread.new do
+        $vsphere[pool['name']] ||= Vmpooler::VsphereHelper.new
+        $vsphere[pool['name']] = Thread.new do
           if inventory[vm]
             begin
-              pool = $redis.hget('vmpooler__vm__' + vm, 'template')
-              migrate_vm(vm, pool, $vsphere['migrations'])
+              migrate_vm(vm, pool['name'], $vsphere[pool['name']])
             rescue => detail
               $logger.log('s', '[x] [' + $redis.hget('vmpooler__vm__' + vm, 'template') + "] '" + vm + "' failed to migrate: " + detail.backtrace.join("\n"))
             end
