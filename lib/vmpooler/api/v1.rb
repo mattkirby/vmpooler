@@ -38,14 +38,16 @@ module Vmpooler
 
     def relocate_vm(vm)
       vsphere = Vmpooler::VsphereHelper.new
+      logger = Vmpooler.new_logger('/var/log/vmpooler.log')
       vm_object = vsphere.find_vm(vm) || vsphere.find_vm_heavy(vm)
       host = vsphere.find_least_used_compatible_host(vm_object)
       start = Time.now
       vsphere.migrate_vm_host(vm_object, host)
-      backend.hset(
-        'vmpooler__vm__' + vm,
-        'migration_time',
-        '%.2f' % (Time.now - start))
+      finish = '%.2f' % (Time.now - start)
+      backend.hset('vmpooler__vm__' + vm, 'migration_time', finish)
+      logger.log(
+        's',
+        '[>] ' + vm + 'migrated from ' + vm_object.parent.name + 'to ' + host.name + ' in ' + finish + 'seconds')
     end
 
     def fetch_single_vm(template)
