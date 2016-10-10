@@ -455,27 +455,27 @@ module Vmpooler
       end
     end
 
-    def migrate_vm(vm, template, connection)
+    def migrate_vm(vm, pool)
       Thread.new do
-        _migrate_vm(vm, pool, connection)
+        _migrate_vm(vm, pool)
       end
     end
 
-    def _migrate_vm(vm, template, connection)
-      vm_object = connection.find_vm(vm) || connection.find_vm_heavy(vm)
-      host = connection.find_least_used_compatible_host(vm_object)
+    def _migrate_vm(vm, pool)
+      vm_object = $vsphere[pool].find_vm(vm) || $vsphere[pool].find_vm_heavy(vm)
+      host = $vsphere[pool].find_least_used_compatible_host(vm_object)
       parent_host = vm_object.summary.runtime.host
       if parent_host == host
-        $redis.srem('vmpooler__migrating__' + template, vm)
-        $logger.log('s', '[ ] [' + template + "] No migration required for '" + vm + "'")
+        $redis.srem('vmpooler__migrating__' + pool, vm)
+        $logger.log('s', '[ ] [' + pool + "] No migration required for '" + vm + "'")
       else
         start = Time.now
-        connection.migrate_vm_host(vm_object, host)
+        $vsphere[pool].migrate_vm_host(vm_object, host)
         finish = '%.2f' % (Time.now - start)
         $redis.hset('vmpooler__vm__' + vm, 'migrations_time', finish)
-        $redis.srem('vmpooler__migrating__' + template, vm)
+        $redis.srem('vmpooler__migrating__' + pool, vm)
         $logger.log('s',
-          '[>] [' + template + " '" + vm + "' migrated from " + vm_object.summary.runtime.host.name + ' to ' + host.name + ' in ' + finish + ' seconds')
+          '[>] [' + pool + " '" + vm + "' migrated from " + vm_object.summary.runtime.host.name + ' to ' + host.name + ' in ' + finish + ' seconds')
       end
     end
 
@@ -582,14 +582,11 @@ module Vmpooler
 
       # MIGRATIONS
       $redis.smembers('vmpooler__migrating__' + pool['name']).each do |vm|
-        $vsphere[pool['name']] ||= Vmpooler::VsphereHelper.new
-        $vsphere[pool['name']] = Thread.new do
-          if inventory[vm]
-            begin
-              migrate_vm(vm, pool['name'], $vsphere[pool['name']])
-            rescue => detail
-              $logger.log('s', '[x] [' + $redis.hget('vmpooler__vm__' + vm, 'template') + "] '" + vm + "' failed to migrate: " + detail.backtrace.join("\n"))
-            end
+        if inventory[vm]
+          begin
+            migrate_vm(vm, pool['name'], $vsphere[pool['name']])
+          rescue => detail
+            $logger.log('s', '[x] [' + pool['name'] + "] '" + vm + "' failed to migrate: \n" + detail.backtrace.join("\n" + "\nEnd stacktrace"))
           end
         end
       end
