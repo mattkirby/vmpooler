@@ -63,9 +63,9 @@ module Vmpooler
       if aliases && aliased_template = aliases[template]
         vm = backend.spop('vmpooler__ready__' + aliased_template)
         if vm
-          backend.sadd('vmpooler__migrating__' + template, vm)
+          backend.sadd('vmpooler__migrating__' + aliased_template, vm)
           relocate_vm(vm)
-          backend.srem('vmpooler__migrating__' + template, vm)
+          backend.srem('vmpooler__migrating__' + aliased_template, vm)
           return [vm, aliased_template]
         end
       end
