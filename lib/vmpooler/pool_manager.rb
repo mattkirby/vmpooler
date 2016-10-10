@@ -584,7 +584,7 @@ module Vmpooler
       $redis.smembers('vmpooler__migrating__' + pool['name']).each do |vm|
         if inventory[vm]
           begin
-            migrate_vm(vm, pool['name'], $vsphere[pool['name']])
+            migrate_vm(vm, pool['name'])
           rescue => detail
             $logger.log('s', '[x] [' + pool['name'] + "] '" + vm + "' failed to migrate: \n" + detail.backtrace.join("\n" + "\nEnd stacktrace"))
           end
