@@ -580,7 +580,7 @@ module Vmpooler
       $redis.smembers('vmpooler__migrating__' + pool['name']).each do |vm|
         if inventory[vm]
           begin
-            migrate_vm(vm, pool['name'])
+            migrate_vm(vm)
           rescue => detail
             $logger.log('s', '[x] [' + $redis.hget('vmpooler__vm__' + vm, 'template') + "] '" + vm + "' failed to migrate: " + detail.backtrace.join("\n"))
           end
