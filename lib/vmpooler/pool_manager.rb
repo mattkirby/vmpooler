@@ -466,7 +466,7 @@ module Vmpooler
       vm_object = $vsphere[pool].find_vm(vm) || $vsphere[pool].find_vm_heavy(vm)
       host = $vsphere[pool].find_least_used_compatible_host(vm_object)
       parent_host = vm_object.summary.runtime.host
-      if parent_host == host or parent_host.name == host.name
+      if parent_host.name.to_s == host.name.to_s
         $logger.log('s', '[ ] [' + pool + "] No migration required for '" + vm + "'")
       else
         start = Time.now
