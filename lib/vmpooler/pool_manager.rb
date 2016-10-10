@@ -455,17 +455,16 @@ module Vmpooler
       end
     end
 
-    def migrate_vm(vm, template)
-      $vsphere[pool[template]] ||= Vmpooler::VsphereHelper.new
-      vm_object = $vsphere[pool[template]].find_vm(vm) || $vsphere[pool[template]].find_vm_heavy(vm)
-      host = $vsphere[pool[template]].find_least_used_compatible_host(vm_object)
+    def migrate_vm(vm, template, connection)
+      vm_object = connection.find_vm(vm) || connection.find_vm_heavy(vm)
+      host = connection.find_least_used_compatible_host(vm_object)
       parent_host = vm_object.summary.runtime.host
       if parent_host == host
         $redis.srem('vmpooler__migrating__' + template, vm)
         $logger.log('s', '[ ] [' + template + "] No migration required for '" + vm + "'")
       else
         start = Time.now
-        $vsphere[pool[template]].migrate_vm_host(vm_object, host)
+        connection.migrate_vm_host(vm_object, host)
         finish = '%.2f' % (Time.now - start)
         $redis.hset('vmpooler__vm__' + vm, 'migrations_time', finish)
         $redis.srem('vmpooler__migrating__' + template, vm)
@@ -577,12 +576,15 @@ module Vmpooler
 
       # MIGRATIONS
       $redis.smembers('vmpooler__migrating__' + pool['name']).each do |vm|
-        if inventory[vm]
-          begin
-            pool = $redis.hget('vmpooler__vm__' + vm, 'template')
-            migrate_vm(vm, pool)
-          rescue => detail
-            $logger.log('s', '[x] [' + $redis.hget('vmpooler__vm__' + vm, 'template') + "] '" + vm + "' failed to migrate: " + detail.backtrace.join("\n"))
+        $vsphere['migrations'] ||= Vmpooler::VsphereHelper.new
+        $vsphere['migrations'] = Thread.new do
+          if inventory[vm]
+            begin
+              pool = $redis.hget('vmpooler__vm__' + vm, 'template')
+              migrate_vm(vm, pool, $vsphere['migrations'])
+            rescue => detail
+              $logger.log('s', '[x] [' + $redis.hget('vmpooler__vm__' + vm, 'template') + "] '" + vm + "' failed to migrate: " + detail.backtrace.join("\n"))
+            end
           end
         end
       end
