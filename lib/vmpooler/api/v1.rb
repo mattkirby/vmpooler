@@ -47,15 +47,14 @@ module Vmpooler
       backend.hset('vmpooler__vm__' + vm, 'migration_time', finish)
       logger.log(
         's',
-        '[>] ' + vm + ' migrated from ' + vm_object.summary.runtime.host +
-        ' to ' + host.name + ' in ' + finish + ' seconds')
+        '[>] ' + vm + ' migrated from ' + vm_object.summary.runtime.host + ' to ' + host.name + ' in ' + finish + ' seconds')
     end
 
     def fetch_single_vm(template)
       vm = backend.spop('vmpooler__ready__' + template)
       if vm
         backend.sadd('vmpooler__migrating__' + template, vm)
-        relocate = relocate_vm(vm)
+        relocate_vm(vm)
         backend.srem('vmpooler__migrating__' + template, vm)
         return [vm, template]
       end
