@@ -455,7 +455,7 @@ module Vmpooler
       end
     end
 
-    def migrate_vm(vm)
+    def migrate_vm(vm, pool)
       $vsphere[pool['migrations']] ||= Vmpooler::VsphereHelper.new
       vm_object = $vsphere[pool['migrations']].find_vm(vm) || $vsphere[pool['migrations']].find_vm_heavy(vm)
       host = $vsphere[pool['migrations']].find_least_used_compatible_host(vm_object)
@@ -580,7 +580,8 @@ module Vmpooler
       $redis.smembers('vmpooler__migrating__' + pool['name']).each do |vm|
         if inventory[vm]
           begin
-            migrate_vm(vm)
+            pool = $redis.hget('vmpooler__vm__' + vm, 'template')
+            migrate_vm(vm, pool)
           rescue => detail
             $logger.log('s', '[x] [' + $redis.hget('vmpooler__vm__' + vm, 'template') + "] '" + vm + "' failed to migrate: " + detail.backtrace.join("\n"))
           end
