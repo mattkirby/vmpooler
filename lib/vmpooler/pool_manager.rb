@@ -456,6 +456,12 @@ module Vmpooler
     end
 
     def migrate_vm(vm, template, connection)
+      Thread.new do
+        _migrate_vm(vm, pool, connection)
+      end
+    end
+
+    def _migrate_vm(vm, template, connection)
       vm_object = connection.find_vm(vm) || connection.find_vm_heavy(vm)
       host = connection.find_least_used_compatible_host(vm_object)
       parent_host = vm_object.summary.runtime.host
