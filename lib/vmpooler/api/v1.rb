@@ -36,34 +36,14 @@ module Vmpooler
       validate_token(backend)
     end
 
-    def relocate_vm(vm)
-      vsphere = Vmpooler::VsphereHelper.new
-      logger = Vmpooler.new_logger('/var/log/vmpooler.log')
-      vm_object = vsphere.find_vm(vm) || vsphere.find_vm_heavy(vm)
-      host = vsphere.find_least_used_compatible_host(vm_object)
-      start = Time.now
-      vsphere.migrate_vm_host(vm_object, host)
-      finish = '%.2f' % (Time.now - start)
-      backend.hset('vmpooler__vm__' + vm, 'migration_time', finish)
-      logger.log(
-        's',
-        "[>] '" + vm + "' migrated from " + vm_object.summary.runtime.host.name + ' to ' + host.name + ' in ' + finish + ' seconds')
-    end
-
     def fetch_single_vm(template)
       vm = backend.spop('vmpooler__ready__' + template)
-      if vm
-        backend.sadd('vmpooler__migrating__' + template, vm)
-        return [vm, template]
-      end
+      return [vm, template] if vm
 
       aliases = Vmpooler::API.settings.config[:alias]
       if aliases && aliased_template = aliases[template]
         vm = backend.spop('vmpooler__ready__' + aliased_template)
-        if vm
-          backend.sadd('vmpooler__migrating__' + aliased_template, vm)
-          return [vm, aliased_template]
-        end
+        return [vm, aliased_template] if vm
       end
 
       [nil, nil]
@@ -75,8 +55,10 @@ module Vmpooler
 
     def account_for_starting_vm(template, vm)
       backend.sadd('vmpooler__running__' + template, vm)
+      backend.sadd('vmpooler__migrating__' + template, vm)
       backend.hset('vmpooler__active__' + template, vm, Time.now)
       backend.hset('vmpooler__vm__' + vm, 'checkout', Time.now)
+      backend.hset('vmpooler__migration__' + template, vm, Time.now)
 
       if Vmpooler::API.settings.config[:auth] and has_token?
         validate_token(backend)
