@@ -463,7 +463,7 @@ module Vmpooler
       template = $redis.hget('vmpooler__vm__' + vm, 'template')
       if parent_host == host
         $redis.srem('vmpooler__migrating__' + template, vm)
-        $logger.log('s', '[ ] [' + template + "] No migration required for '" + vm + "'"
+        $logger.log('s', '[ ] [' + template + "] No migration required for '" + vm + "'")
       else
         start = Time.now
         $vsphere[pool['migrations']].migrate_vm_host(vm_object, host)
