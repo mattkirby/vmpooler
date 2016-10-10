@@ -455,18 +455,17 @@ module Vmpooler
       end
     end
 
-    def migrate_vm(vm, pool)
-      $vsphere[vm[pool]] ||= Vmpooler::VsphereHelper.new
-      vm_object = $vsphere[vm[pool]].find_vm(vm) || $vsphere[vm[pool]].find_vm_heavy(vm)
-      host = $vsphere[vm[pool]].find_least_used_compatible_host(vm_object)
+    def migrate_vm(vm, template)
+      $vsphere[pool[template]] ||= Vmpooler::VsphereHelper.new
+      vm_object = $vsphere[pool[template]].find_vm(vm) || $vsphere[pool[template]].find_vm_heavy(vm)
+      host = $vsphere[pool[template]].find_least_used_compatible_host(vm_object)
       parent_host = vm_object.summary.runtime.host
-      template = $redis.hget('vmpooler__vm__' + vm, 'template')
       if parent_host == host
         $redis.srem('vmpooler__migrating__' + template, vm)
         $logger.log('s', '[ ] [' + template + "] No migration required for '" + vm + "'")
       else
         start = Time.now
-        $vsphere[vm[pool]].migrate_vm_host(vm_object, host)
+        $vsphere[pool[template]].migrate_vm_host(vm_object, host)
         finish = '%.2f' % (Time.now - start)
         $redis.hset('vmpooler__vm__' + vm, 'migrations_time', finish)
         $redis.srem('vmpooler__migrating__' + template, vm)
