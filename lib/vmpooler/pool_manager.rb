@@ -468,7 +468,7 @@ module Vmpooler
         start = Time.now
         $vsphere[pool['migrations']].migrate_vm_host(vm_object, host)
         finish = '%.2f' % (Time.now - start)
-        backend.hset('vmpooler__vm__' + vm, 'migrations_time', finish)
+        $redis.hset('vmpooler__vm__' + vm, 'migrations_time', finish)
         $redis.srem('vmpooler__migrating__' + template, vm)
         $logger.log('s',
           '[>] [' + template + " '" + vm + "' migrated from " + vm_object.summary.runtime.host.name + ' to ' + host.name + ' in ' + finish + ' seconds')
