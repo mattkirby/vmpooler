@@ -455,6 +455,26 @@ module Vmpooler
       end
     end
 
+    def migrate_vm(vm)
+      $vsphere[pool['migrations']] ||= Vmpooler::VsphereHelper.new
+      vm_object = $vsphere[pool['migrations']].find_vm(vm) || $vsphere[pool['migrations']].find_vm_heavy(vm)
+      host = $vsphere[pool['migrations']].find_least_used_compatible_host(vm_object)
+      parent_host = vm_object.summary.runtime.host
+      template = $redis.hget('vmpooler__vm__' + vm, 'template')
+      if parent_host == host
+        $redis.srem('vmpooler__migrating__' + template, vm)
+        $logger.log('s', '[ ] [' + template + "] No migration required for '" + vm + "'"
+      else
+        start = Time.now
+        $vsphere[pool['migrations']].migrate_vm_host(vm_object, host)
+        finish = '%.2f' % (Time.now - start)
+        backend.hset('vmpooler__vm__' + vm, 'migrations_time', finish)
+        $redis.srem('vmpooler__migrating__' + template, vm)
+        $logger.log('s',
+          '[>] [' + template + " '" + vm + "' migrated from " + vm_object.summary.runtime.host.name + ' to ' + host.name + ' in ' + finish + ' seconds')
+      end
+    end
+
     def check_pool(pool)
       $logger.log('d', "[*] [#{pool['name']}] starting worker thread")
 
@@ -553,6 +573,17 @@ module Vmpooler
 
         if $redis.sismember('vmpooler__discovered__' + pool['name'], vm)
           $redis.smove('vmpooler__discovered__' + pool['name'], 'vmpooler__completed__' + pool['name'], vm)
+        end
+      end
+
+      # MIGRATIONS
+      $redis.smembers('vmpooler__migrating__' + pool['name']).each do |vm|
+        if inventory[vm]
+          begin
+            migrate_vm(vm, pool['name'])
+          rescue
+            $logger.log('s', '[x] [' + $redis.hget('vmpooler__vm__' + vm, 'template') + "] '" + vm + "' failed to migrate")
+          end
         end
       end
 

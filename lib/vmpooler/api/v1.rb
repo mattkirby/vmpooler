@@ -54,8 +54,6 @@ module Vmpooler
       vm = backend.spop('vmpooler__ready__' + template)
       if vm
         backend.sadd('vmpooler__migrating__' + template, vm)
-        relocate_vm(vm)
-        backend.srem('vmpooler__migrating__' + template, vm)
         return [vm, template]
       end
 
@@ -64,8 +62,6 @@ module Vmpooler
         vm = backend.spop('vmpooler__ready__' + aliased_template)
         if vm
           backend.sadd('vmpooler__migrating__' + aliased_template, vm)
-          relocate_vm(vm)
-          backend.srem('vmpooler__migrating__' + aliased_template, vm)
           return [vm, aliased_template]
         end
       end
