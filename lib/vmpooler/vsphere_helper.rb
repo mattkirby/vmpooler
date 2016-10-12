@@ -247,7 +247,7 @@ module Vmpooler
       model = source_host.hardware.cpuPkg[0].description
       cluster = source_host.parent
       target_hosts = []
-      cluster.hosts.each do |host|
+      cluster.host.each do |host|
         host_usage = get_host_utilization(host, model)
         target_hosts << host_usage if host_usage
       end
