@@ -464,7 +464,7 @@ module Vmpooler
     def _migrate_vm(vm, pool)
       $redis.srem('vmpooler__migrating__' + pool, vm)
       vm_object = $vsphere[pool].find_vm(vm) || $vsphere[pool].find_vm_heavy(vm)
-      host = $vsphere[pool].find_least_used_compatible_host(vm_object).wait_for_completion
+      host = $vsphere[pool].find_least_used_compatible_host(vm_object)
       parent_host = vm_object.summary.runtime.host
       if host.summary.hardware.uuid == parent_host.summary.hardware.uuid
         $logger.log('s', '[ ] [' + pool + "] No migration required for '" + vm + "'")
