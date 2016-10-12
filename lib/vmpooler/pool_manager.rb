@@ -466,9 +466,7 @@ module Vmpooler
       vm_object = $vsphere[pool].find_vm(vm) || $vsphere[pool].find_vm_heavy(vm)
       host = $vsphere[pool].find_least_used_compatible_host(vm_object).wait_for_completion
       parent_host = vm_object.summary.runtime.host
-      target_host_uuid == host.summary.hardware.uuid
-      source_host_uuid == parent_host.summary.hardware.uuid
-      if source_host_uuid == target_host_uuid
+      if host.summary.hardware.uuid == parent_host.summary.hardware.uuid
         $logger.log('s', '[ ] [' + pool + "] No migration required for '" + vm + "'")
       else
         start = Time.now
