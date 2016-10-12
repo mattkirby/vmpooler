@@ -196,6 +196,27 @@ module Vmpooler
       base
     end
 
+    def get_host_utilization(host, model=nil, limit=90)
+      if model and not host.hardware.cpuPkg[0].description == model
+        return nil
+      end
+      if not host.runtime.inMaintenanceMode
+        if host.overallStatus == 'green'
+          cpu_usage = host.summary.quickStats.overallCpuUsage
+          cpu_size = host.summary.hardware.cpuMhz * host.summary.hardware.numCpuCores
+          cpu_capacity = (cpu_usage.to_f / cpu_size.to_f) * 100
+          memory_usage = host.summary.quickStats.overallMemoryUsage
+          memory_size = host.summary.hardware.memorySize / 1024 / 1024
+          memory_capacity = (memory_usage.to_f / memory_size.to_f) * 100
+          if not cpu_capacity > limit and not memory_capacity > limit
+            utilization = cpu_capacity + memory_capacity
+            return [ utilization, host ]
+          end
+        end
+      end
+      return nil
+    end
+
     def find_least_used_host(cluster)
       begin
         @connection.serviceInstance.CurrentTime
@@ -208,26 +229,11 @@ module Vmpooler
       datacenter.hostFolder.children.each do |folder|
         next unless folder.name == cluster
         folder.host.each do |host|
-          if not host.runtime.inMaintenanceMode
-            if host.overallStatus == 'green'
-             cpu_usage = host.summary.quickStats.overallCpuUsage
-             cpu_size = host.summary.hardware.cpuMhz * host.summary.hardware.numCpuCores
-             cpu_capacity = (cpu_usage.to_f / cpu_size.to_f) * 100
-             memory_usage = host.summary.quickStats.overallMemoryUsage
-             memory_size = host.summary.hardware.memorySize / 1024 / 1024
-             memory_capacity = (memory_usage.to_f / memory_size.to_f) * 100
-             if not cpu_capacity  > 90
-               if not memory_capacity > 90
-                 utilization = cpu_capacity + memory_capacity
-                 target_hosts << [ utilization, host ]
-               end
-             end
-            end
-          end
+          host_usage = get_host_utilization(host)
+          target_hosts << host_usage if host_usage
         end
       end
-      target_hosts.sort!
-      return target_hosts[0][1]
+      return target_hosts.sort[0][1]
     end
 
     def find_least_used_compatible_host(vm)
@@ -240,30 +246,12 @@ module Vmpooler
       source_host = vm.summary.runtime.host
       model = source_host.hardware.cpuPkg[0].description
       cluster = source_host.parent
-      hosts = cluster.host
       target_hosts = []
-      hosts.each do |host|
-        if not host.runtime.inMaintenanceMode
-          if host.overallStatus == 'green'
-            if host.hardware.cpuPkg[0].description == model
-              cpu_usage = host.summary.quickStats.overallCpuUsage
-              cpu_size = host.summary.hardware.cpuMhz * host.summary.hardware.numCpuCores
-              cpu_capacity = (cpu_usage.to_f / cpu_size.to_f) * 100
-              memory_usage = host.summary.quickStats.overallMemoryUsage
-              memory_size = host.summary.hardware.memorySize / 1024 / 1024
-              memory_capacity = (memory_usage.to_f / memory_size.to_f) * 100
-              if not cpu_capacity  > 90
-                if not memory_capacity > 90
-                  utilization = cpu_capacity + memory_capacity
-                  target_hosts << [ utilization, host ]
-                end
-              end
-            end
-          end
-        end
+      cluster.hosts.each do |host|
+        host_usage = get_host_utilization(host, model)
+        target_hosts << host_usage if host_usage
       end
-      target_hosts.sort!
-      return target_hosts[0][1]
+      return target_hosts.sort[0][1]
     end
 
     def find_pool(poolname)

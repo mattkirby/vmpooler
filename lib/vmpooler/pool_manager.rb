@@ -585,8 +585,8 @@ module Vmpooler
         if inventory[vm]
           begin
             migrate_vm(vm, pool['name'])
-          rescue => detail
-            $logger.log('s', '[x] [' + pool['name'] + "] '" + vm + "' failed to migrate: \n" + detail.backtrace.join("\n" + "\nEnd stacktrace"))
+          rescue
+            $logger.log('s', '[x] [' + pool['name'] + "] '" + vm + "' failed to migrate")
           end
         end
       end
