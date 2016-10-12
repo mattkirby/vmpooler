@@ -466,6 +466,7 @@ module Vmpooler
       vm_object = $vsphere[pool].find_vm(vm) || $vsphere[pool].find_vm_heavy(vm)
       host = $vsphere[pool].find_least_used_compatible_host(vm_object)
       parent_host = vm_object.summary.runtime.host
+      parent_host_name = parent_host.name
       if host == parent_host
         $logger.log('s', '[ ] [' + pool + "] No migration required for '" + vm + "'")
       else
@@ -474,7 +475,7 @@ module Vmpooler
         finish = '%.2f' % (Time.now - start)
         $redis.hset('vmpooler__vm__' + vm, 'migration_time', finish)
         $logger.log('s',
-          '[>] [' + pool + "] '" + vm + "' migrated from " + vm_object.summary.runtime.host.name + ' to ' + host.name + ' in ' + finish + ' seconds')
+          '[>] [' + pool + "] '" + vm + "' migrated from " + parent_host_name + ' to ' + host.name + ' in ' + finish + ' seconds')
       end
     end
 
