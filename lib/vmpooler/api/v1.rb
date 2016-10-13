@@ -58,7 +58,6 @@ module Vmpooler
       backend.sadd('vmpooler__migrating__' + template, vm)
       backend.hset('vmpooler__active__' + template, vm, Time.now)
       backend.hset('vmpooler__vm__' + vm, 'checkout', Time.now)
-      backend.hset('vmpooler__migration__' + template, vm, Time.now)
 
       if Vmpooler::API.settings.config[:auth] and has_token?
         validate_token(backend)
