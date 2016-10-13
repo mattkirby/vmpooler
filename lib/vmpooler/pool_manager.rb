@@ -473,7 +473,9 @@ module Vmpooler
         start = Time.now
         $vsphere[pool].migrate_vm_host(vm_object, host)
         finish = '%.2f' % (Time.now - start)
+        request_to_migration = '%.2f' % (Time.now - $redis.hget('vmpooler__vm__' + vm, 'migration').to_f)
         $redis.hset('vmpooler__vm__' + vm, 'migration_time', finish)
+        $redis.hset('vmpooler__vm__' + vm, 'request_to_migration', request_to_migration)
         $logger.log('s',
           '[>] [' + pool + "] '" + vm + "' migrated from " + parent_host_name + ' to ' + host.name + ' in ' + finish + ' seconds')
       end

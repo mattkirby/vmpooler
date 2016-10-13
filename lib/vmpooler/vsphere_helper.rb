@@ -204,12 +204,12 @@ module Vmpooler
         if host.overallStatus == 'green'
           cpu_usage = host.summary.quickStats.overallCpuUsage
           cpu_size = host.summary.hardware.cpuMhz * host.summary.hardware.numCpuCores
-          cpu_capacity = (cpu_usage.to_f / cpu_size.to_f) * 100
+          cpu_utilization = (cpu_usage.to_f / cpu_size.to_f) * 100
           memory_usage = host.summary.quickStats.overallMemoryUsage
           memory_size = host.summary.hardware.memorySize / 1024 / 1024
-          memory_capacity = (memory_usage.to_f / memory_size.to_f) * 100
-          if not cpu_capacity > limit and not memory_capacity > limit
-            utilization = cpu_capacity + memory_capacity
+          memory_utilization = (memory_usage.to_f / memory_size.to_f) * 100
+          if not cpu_utilization > limit and not memory_utilization > limit
+            utilization = cpu_utilization + memory_utilization
             return [ utilization, host ]
           end
         end
