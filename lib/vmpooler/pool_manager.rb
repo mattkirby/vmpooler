@@ -473,7 +473,7 @@ module Vmpooler
         start = Time.now
         $vsphere[pool].migrate_vm_host(vm_object, host)
         finish = '%.2f' % (Time.now - start)
-        checkout_to_migration = '%.2f' % (Time.now - $redis.hget('vmpooler__vm__' + vm, 'checkout'))
+        checkout_to_migration = '%.2f' % (Time.now - Time.parse($redis.hget('vmpooler__vm__' + vm, 'checkout')))
         $redis.hset('vmpooler__vm__' + vm, 'migration_time', finish)
         $redis.hset('vmpooler__vm__' + vm, 'checkout_to_migration', checkout_to_migration)
         $logger.log('s',
