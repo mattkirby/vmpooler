@@ -455,6 +455,36 @@ module Vmpooler
       end
     end
 
+    def migrate_vm(vm, pool)
+      Thread.new do
+        _migrate_vm(vm, pool)
+      end
+    end
+
+    def find_vsphere_pool_vm(pool, vm)
+      $vsphere[pool].find_vm(vm) || $vsphere[pool].find_vm_heavy(vm)
+    end
+
+    def _migrate_vm(vm, pool)
+      $redis.srem('vmpooler__migrating__' + pool, vm)
+      vm_object = find_vsphere_pool_vm(pool, vm)
+      host = $vsphere[pool].find_least_used_compatible_host(vm_object)
+      parent_host = vm_object.summary.runtime.host
+      parent_host_name = parent_host.name
+      if host == parent_host
+        $logger.log('s', "[ ] [#{pool}] No migration required for '#{vm}'")
+      else
+        start = Time.now
+        $vsphere[pool].migrate_vm_host(vm_object, host)
+        finish = '%.2f' % (Time.now - start)
+        $metrics.timing("migrate.#{vm['template']}", finish)
+        checkout_to_migration = '%.2f' % (Time.now - Time.parse($redis.hget('vmpooler__vm__' + vm, 'checkout')))
+        $redis.hset('vmpooler__vm__' + vm, 'migration_time', finish)
+        $redis.hset('vmpooler__vm__' + vm, 'checkout_to_migration', checkout_to_migration)
+        $logger.log('s', "[>] [#{pool}] '#{vm}' migrated from #{parent_host_name} to #{host.name} in #{finish} seconds")
+      end
+    end
+
     def check_pool(pool)
       $logger.log('d', "[*] [#{pool['name']}] starting worker thread")
 
@@ -480,7 +510,8 @@ module Vmpooler
             (! $redis.sismember('vmpooler__ready__' + pool['name'], vm['name'])) &&
             (! $redis.sismember('vmpooler__pending__' + pool['name'], vm['name'])) &&
             (! $redis.sismember('vmpooler__completed__' + pool['name'], vm['name'])) &&
-            (! $redis.sismember('vmpooler__discovered__' + pool['name'], vm['name']))
+            (! $redis.sismember('vmpooler__discovered__' + pool['name'], vm['name'])) &&
+            (! $redis.sismember('vmpooler__migrating__' + pool['name'], vm['name']))
 
             $redis.sadd('vmpooler__discovered__' + pool['name'], vm['name'])
 
@@ -552,6 +583,17 @@ module Vmpooler
 
         if $redis.sismember('vmpooler__discovered__' + pool['name'], vm)
           $redis.smove('vmpooler__discovered__' + pool['name'], 'vmpooler__completed__' + pool['name'], vm)
+        end
+      end
+
+      # MIGRATIONS
+      $redis.smembers('vmpooler__migrating__' + pool['name']).each do |vm|
+        if inventory[vm]
+          begin
+            migrate_vm(vm, pool['name'])
+          rescue => err
+            $logger.log('s', "[x] [#{pool['name']}] '#{vm}' failed to migrate: #{err}")
+          end
         end
       end
 
