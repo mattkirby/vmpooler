@@ -228,6 +228,7 @@ describe 'Pool Manager' do
       allow(redis).to receive(:smembers).with('vmpooler__running__pool1').and_return([])
       allow(redis).to receive(:smembers).with('vmpooler__completed__pool1').and_return([])
       allow(redis).to receive(:smembers).with('vmpooler__discovered__pool1').and_return([])
+      allow(redis).to receive(:smembers).with('vmpooler__migrating__pool1').and_return([])
       allow(redis).to receive(:set)
       allow(redis).to receive(:get).with('vmpooler__tasks__clone').and_return(0)
       allow(redis).to receive(:get).with('vmpooler__empty__pool1').and_return(nil)
