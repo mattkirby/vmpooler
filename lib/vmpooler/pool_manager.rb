@@ -476,8 +476,7 @@ module Vmpooler
         checkout_to_migration = '%.2f' % (Time.now - Time.parse($redis.hget('vmpooler__vm__' + vm, 'checkout')))
         $redis.hset('vmpooler__vm__' + vm, 'migration_time', finish)
         $redis.hset('vmpooler__vm__' + vm, 'checkout_to_migration', checkout_to_migration)
-        $logger.log('s',
-          '[>] [' + pool + "] '" + vm + "' migrated from " + parent_host_name + ' to ' + host.name + ' in ' + finish + ' seconds')
+        $logger.log('s', "[>] [#{pool}] '#{vm}' migrated from #{parent_host_name} to #{host.name} in #{finish} seconds")
       end
     end
 
