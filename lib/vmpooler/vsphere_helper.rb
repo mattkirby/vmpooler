@@ -225,11 +225,15 @@ module Vmpooler
     end
 
     def find_cluster(cluster)
+      target_cluster = []
       datacenter = @connection.serviceInstance.find_datacenter
       datacenter.hostFolder.children.each do |folder|
-        next unless folder.name == cluster
-        folder
+        if folder.name == cluster
+          target_cluster << folder
+          break
+        end
       end
+      target_cluster[0]
     end
 
     def get_cluster_host_utilization(cluster)
