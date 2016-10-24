@@ -169,6 +169,9 @@ module Vmpooler
     end
 
     def get_host_utilization(host, model=nil, limit=90)
+      # model ensures a compatible CPU target is identified
+      # limit is a hard resource limit after which a host will not be considered
+      # for deployments
       if model
         return nil unless host_has_cpu_model? host, model
       end
@@ -225,15 +228,10 @@ module Vmpooler
     end
 
     def find_cluster(cluster)
-      target_cluster = []
       datacenter = @connection.serviceInstance.find_datacenter
-      datacenter.hostFolder.children.each do |folder|
-        if folder.name == cluster
-          target_cluster << folder
-          break
-        end
+      datacenter.hostFolder.children.each do |cluster_object|
+        return cluster_object if cluster_object.name == cluster
       end
-      target_cluster[0]
     end
 
     def get_cluster_host_utilization(cluster)
@@ -249,14 +247,14 @@ module Vmpooler
       vsphere_connection_alive? @connection
 
       source_host = vm.summary.runtime.host
-      model = source_host.hardware.cpuPkg[0].description.split()[4]
+      model = get_host_cpu_arch_version(source_host)
       cluster = source_host.parent
       target_hosts = []
       cluster.host.each do |host|
         host_usage = get_host_utilization(host, model)
         target_hosts << host_usage if host_usage
       end
-      return target_hosts.sort[0][1]
+      target_hosts.sort[0][1]
     end
 
     def find_pool(poolname)
