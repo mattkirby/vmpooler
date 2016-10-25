@@ -455,33 +455,46 @@ module Vmpooler
       end
     end
 
+    def find_vsphere_pool_vm(pool, vm)
+      $vsphere[pool].find_vm(vm) || $vsphere[pool].find_vm_heavy(vm)
+    end
+
     def migrate_vm(vm, pool)
       Thread.new do
         _migrate_vm(vm, pool)
       end
     end
 
-    def find_vsphere_pool_vm(pool, vm)
-      $vsphere[pool].find_vm(vm) || $vsphere[pool].find_vm_heavy(vm)
-    end
-
     def _migrate_vm(vm, pool)
       $redis.srem('vmpooler__migrating__' + pool, vm)
       vm_object = find_vsphere_pool_vm(pool, vm)
-      host = $vsphere[pool].find_least_used_compatible_host(vm_object)
       parent_host = vm_object.summary.runtime.host
       parent_host_name = parent_host.name
-      if host == parent_host
-        $logger.log('s', "[ ] [#{pool}] No migration required for '#{vm}'")
+      # Check if migration_limit is set
+      migration_limit = $config[:config]['migration_limit']
+      if not migration_limit
+        $logger.log('s', "[ ] [#{pool}] '#{vm}' is running on #{parent_host_name}")
       else
-        start = Time.now
-        $vsphere[pool].migrate_vm_host(vm_object, host)
-        finish = '%.2f' % (Time.now - start)
-        $metrics.timing("migrate.#{vm['template']}", finish)
-        checkout_to_migration = '%.2f' % (Time.now - Time.parse($redis.hget('vmpooler__vm__' + vm, 'checkout')))
-        $redis.hset('vmpooler__vm__' + vm, 'migration_time', finish)
-        $redis.hset('vmpooler__vm__' + vm, 'checkout_to_migration', checkout_to_migration)
-        $logger.log('s', "[>] [#{pool}] '#{vm}' migrated from #{parent_host_name} to #{host.name} in #{finish} seconds")
+        migration_count = $redis.smembers('vmpooler__migration').size
+        if migration_count >= migration_limit
+          $logger.log('s', "[ ] [#{pool}] '#{vm}' is running on #{parent_host_name}. No migration will be evaluated since the migration_limit has been reached.")
+        else
+          $redis.sadd('vmpooler__migration', vm)
+          host = $vsphere[pool].find_least_used_compatible_host(vm_object)
+          if host == parent_host
+            $logger.log('s', "[ ] [#{pool}] No migration required for '#{vm}'")
+          else
+            start = Time.now
+            $vsphere[pool].migrate_vm_host(vm_object, host)
+            finish = '%.2f' % (Time.now - start)
+            $metrics.timing("migrate.#{vm['template']}", finish)
+            checkout_to_migration = '%.2f' % (Time.now - Time.parse($redis.hget('vmpooler__vm__' + vm, 'checkout')))
+            $redis.hset('vmpooler__vm__' + vm, 'migration_time', finish)
+            $redis.hset('vmpooler__vm__' + vm, 'checkout_to_migration', checkout_to_migration)
+            $logger.log('s', "[>] [#{pool}] '#{vm}' migrated from #{parent_host_name} to #{host.name} in #{finish} seconds")
+          end
+          $redis.srem('vmpooler__migration', vm)
+        end
       end
     end
 
