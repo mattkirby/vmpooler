@@ -472,10 +472,12 @@ module Vmpooler
       parent_host_name = parent_host.name
       # Check if migration_limit is set
       migration_limit = $config[:config]['migration_limit']
+      $logger.log('s', "DEBUG: Migration limit is #{migration_limit}")
       if not migration_limit
         $logger.log('s', "[ ] [#{pool}] '#{vm}' is running on #{parent_host_name}")
       else
         migration_count = $redis.smembers('vmpooler__migration').size
+        $logger.log('s', "DEBUG: Migration count is #{migration_count}")
         if migration_count >= migration_limit
           $logger.log('s', "[ ] [#{pool}] '#{vm}' is running on #{parent_host_name}. No migration will be evaluated since the migration_limit has been reached.")
         else
