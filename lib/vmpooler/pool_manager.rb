@@ -26,7 +26,7 @@ module Vmpooler
       end
     end
 
-    def check_vm_hostname_configuration(vm, host=nil, timeout)
+    def check_vm_hostname_configuration(vm, timeout, host=nil)
       if host
         if host.summary.guest.ipAddress
           if host.summary.guest.hostName == vm
@@ -51,20 +51,20 @@ module Vmpooler
           end
           move_pending_vm_to_ready(vm, pool, host)
         else
-          fail_pending_vm(vm, host, pool, timeout)
+          fail_pending_vm(vm, pool, timeout, host)
         end
       rescue
-        fail_pending_vm(vm, host, pool, timeout)
+        fail_pending_vm(vm, pool, timeout, host)
       end
     end
 
-    def fail_pending_vm(vm, host, pool, timeout)
+    def fail_pending_vm(vm, pool, timeout, host=nil)
       clone_stamp = $redis.hget('vmpooler__vm__' + vm, 'clone')
 
       if (clone_stamp) &&
           (((Time.now - Time.parse(clone_stamp)) / 60) > timeout)
 
-        check_vm_hostname_configuration(vm, host, timeout)
+        check_vm_hostname_configuration(vm, timeout, host)
         $redis.smove('vmpooler__pending__' + pool, 'vmpooler__completed__' + pool, vm)
       end
     end
