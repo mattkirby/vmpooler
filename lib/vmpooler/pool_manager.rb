@@ -38,18 +38,18 @@ module Vmpooler
     end
 
     def _check_pending_vm(vm, pool, timeout)
-      host = $vsphere[pool].find_vm(vm)
+      begin
+        host = find_vsphere_pool_vm(pool, vm)
 
-      if host
-        begin
+        if host
           Timeout.timeout(5) do
             TCPSocket.new vm, 22
           end
           move_pending_vm_to_ready(vm, pool, host)
-        rescue
+        else
           fail_pending_vm(vm, host, pool, timeout)
         end
-      else
+      rescue
         fail_pending_vm(vm, host, pool, timeout)
       end
     end
@@ -466,7 +466,7 @@ module Vmpooler
     end
 
     def find_vsphere_pool_vm(pool, vm)
-      $vsphere[pool].find_vm(vm) || $vsphere[pool].find_vm_heavy(vm)
+      $vsphere[pool].find_vm(vm) || $vsphere[pool].find_vm_heavy(vm)[vm]
     end
 
     def migrate_vm(vm, pool)
