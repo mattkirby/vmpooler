@@ -27,17 +27,21 @@ module Vmpooler
     end
 
     def check_vm_hostname_configuration(vm, timeout, host=nil)
-      if host
-        if host.summary.guest.ipAddress
-          if host.summary.guest.hostName == vm
-            $logger.log('d',
-              "[!] [#{pool}] '#{vm}' has IPaddress and hostname is set, but cannot be reached. Marked as 'failed' after #{timeout} minutes")
-          else
-            $logger.log('d', "[!] [#{pool}] '#{vm}' hostname configuration failed during deploy so ddns configuration will not succeed. Marked as 'failed' after #{timeout} minutes")
+      begin
+        if host
+          if host.summary.guest.ipAddress
+            if host.summary.guest.hostName == vm
+              $logger.log('d',
+                "[!] [#{pool}] '#{vm}' has IPaddress and hostname is set, but cannot be reached. Marked as 'failed' after #{timeout} minutes")
+            else
+              $logger.log('d', "[!] [#{pool}] '#{vm}' hostname configuration failed during deploy so ddns configuration will not succeed. Marked as 'failed' after #{timeout} minutes")
+            end
           end
+        else
+          $logger.log('d', "[!] [#{pool}] '#{vm}' does not exist and is marked as 'failed' after #{timeout} minutes")
         end
-      else
-        $logger.log('d', "[!] [#{pool}] '#{vm}' does not exist and is marked as 'failed' after #{timeout} minutes")
+      rescue => err
+        $logger.log('s', "[!] [#{pool}] issue encountered while evaluating '#{vm}': #{err}")
       end
     end
 
