@@ -26,6 +26,17 @@ module Vmpooler
       end
     end
 
+    def check_vm_hostname_configuration(vm, host, timeout)
+      if host.summary.guest.ipAddress
+        if host.summary.guest.hostName == vm
+          $logger.log('d',
+            "[!] [#{pool}] '#{vm}' has IPaddress and hostname is set, but cannot be reached. Marked as 'failed' after #{timeout} minutes")
+        else
+          $logger.log('d', "[!] [#{pool}] '#{vm}' hostname configuration failed during deploy so ddns configuration will not succeed. Marked as 'failed' after #{timeout} minutes")
+        end
+      end
+    end
+
     def _check_pending_vm(vm, pool, timeout)
       host = $vsphere[pool].find_vm(vm)
 
@@ -36,22 +47,21 @@ module Vmpooler
           end
           move_pending_vm_to_ready(vm, pool, host)
         rescue
-          fail_pending_vm(vm, pool, timeout)
+          fail_pending_vm(vm, host, pool, timeout)
         end
       else
-        fail_pending_vm(vm, pool, timeout)
+        fail_pending_vm(vm, host, pool, timeout)
       end
     end
 
-    def fail_pending_vm(vm, pool, timeout)
+    def fail_pending_vm(vm, host, pool, timeout)
       clone_stamp = $redis.hget('vmpooler__vm__' + vm, 'clone')
 
       if (clone_stamp) &&
           (((Time.now - Time.parse(clone_stamp)) / 60) > timeout)
 
+        check_vm_hostname_configuration(vm, host, timeout)
         $redis.smove('vmpooler__pending__' + pool, 'vmpooler__completed__' + pool, vm)
-
-        $logger.log('d', "[!] [#{pool}] '#{vm}' marked as 'failed' after #{timeout} minutes")
       end
     end
 
