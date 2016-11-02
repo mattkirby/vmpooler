@@ -245,6 +245,7 @@ module Vmpooler
           ).wait_for_completion
           finish = '%.2f' % (Time.now - start)
 
+          $redis.decr('vmpooler__tasks__clone')
           $redis.hset('vmpooler__clone__' + Date.today.to_s, vm['template'] + ':' + vm['hostname'], finish)
           $redis.hset('vmpooler__vm__' + vm['hostname'], 'clone_time', finish)
 
@@ -253,8 +254,6 @@ module Vmpooler
           $logger.log('s', "[!] [#{vm['template']}] '#{vm['hostname']}' clone appears to have failed")
           $redis.srem('vmpooler__pending__' + vm['template'], vm['hostname'])
         end
-
-        $redis.decr('vmpooler__tasks__clone')
 
         $metrics.timing("clone.#{vm['template']}", finish)
       end
