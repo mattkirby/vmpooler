@@ -486,36 +486,36 @@ module Vmpooler
     end
 
     def _migrate_vm(vm, pool, vsphere)
-      begin
-        $redis.srem('vmpooler__migrating__' + pool, vm)
-        vm_object = vsphere.find_vm(vm)
-        parent_host, parent_host_name = get_vm_host_info(vm_object)
-        migration_limit = migration_limit $config[:config]['migration_limit']
-        migration_count = $redis.scard('vmpooler__migration')
+      $redis.srem('vmpooler__migrating__' + pool, vm)
+      vm_object = vsphere.find_vm(vm)
+      parent_host, parent_host_name = get_vm_host_info(vm_object)
+      migration_limit = migration_limit $config[:config]['migration_limit']
+      migration_count = $redis.scard('vmpooler__migration')
 
-        if ! migration_limit
-          $logger.log('s', "[ ] [#{pool}] '#{vm}' is running on #{parent_host_name}")
+      if ! migration_limit
+        $logger.log('s', "[ ] [#{pool}] '#{vm}' is running on #{parent_host_name}")
+        return
+      else
+        if migration_count >= migration_limit
+          $logger.log('s', "[ ] [#{pool}] '#{vm}' is running on #{parent_host_name}. No migration will be evaluated since the migration_limit has been reached")
           return
         else
-          if migration_count >= migration_limit
-            $logger.log('s', "[ ] [#{pool}] '#{vm}' is running on #{parent_host_name}. No migration will be evaluated since the migration_limit has been reached")
-            return
+          $redis.sadd('vmpooler__migration', vm)
+          least_used_host = vsphere.find_least_used_compatible_host(vm_object)
+          host, host_name = least_used_host
+          raise 'ArgumentError: No target host found' if ! host
+          if host == parent_host
+            $logger.log('s', "[ ] [#{pool}] No migration required for '#{vm}' running on #{parent_host_name}")
           else
-            $redis.sadd('vmpooler__migration', vm)
-            host, host_name = vsphere.find_least_used_compatible_host(vm_object)
-            if host == parent_host
-              $logger.log('s', "[ ] [#{pool}] No migration required for '#{vm}' running on #{parent_host_name}")
-            else
-              finish = migrate_vm_and_record_timing(vm_object, vm, pool, host, parent_host_name, host_name, vsphere)
-              $logger.log('s', "[>] [#{pool}] '#{vm}' migrated from #{parent_host_name} to #{host_name} in #{finish} seconds")
-            end
-            remove_vmpooler_migration_vm(pool, vm)
+            finish = migrate_vm_and_record_timing(vm_object, vm, host, vsphere)
+            $logger.log('s', "[>] [#{pool}] '#{vm}' migrated from #{parent_host_name} to #{host_name} in #{finish} seconds")
           end
+          remove_vmpooler_migration_vm(pool, vm)
         end
-      rescue => err
-        $logger.log('s', "[x] [#{pool}] '#{vm}' migration failed with an error: #{err}")
-        remove_vmpooler_migration_vm(pool, vm)
       end
+    rescue => err
+      $logger.log('s', "[x] [#{pool}] '#{vm}' migration failed with an error: #{err}")
+      remove_vmpooler_migration_vm(pool, vm)
     end
 
     def get_vm_host_info(vm_object)

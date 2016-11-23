@@ -207,7 +207,7 @@ module Vmpooler
       return nil if cpu_utilization > limit
       return nil if memory_utilization > limit
 
-      [ cpu_utilization + memory_utilization, host ]
+      [ cpu_utilization, host ]
     end
 
     def host_has_cpu_model?(host, model)
@@ -256,19 +256,32 @@ module Vmpooler
       cluster_hosts
     end
 
-    def find_least_used_compatible_host(vm)
+    def find_least_used_compatible_host(vm, difference)
       ensure_connected @connection, $credentials
 
       source_host = vm.summary.runtime.host
       model = get_host_cpu_arch_version(source_host)
+      source_host_utilization = get_host_utilization(source_host, model)
       cluster = source_host.parent
+      cluster_size = cluster.host.size
       target_hosts = []
       cluster.host.each do |host|
         host_usage = get_host_utilization(host, model)
         target_hosts << host_usage if host_usage
       end
-      target_host = target_hosts.sort[0][1]
-      [target_host, target_host.name]
+      target_hosts.sort!
+      host_selection = (cluster_size.to_f * 0.25).to_i % target_hosts.size
+      target_host = select_host_from_list(target_hosts, host_selection)
+      host_difference = source_host_utilization[0] - target_host[0]
+      return if host_difference < difference
+      [target_host[1], target_host[1].name]
+    end
+
+    def select_host_from_list(hosts, count)
+      # Randomly select host from the list of hosts selected, limiting the amount
+      # considered to the provided count
+      select = Time.now.to_i % count
+      hosts[select]
     end
 
     def find_pool(poolname)
