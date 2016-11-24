@@ -14,8 +14,9 @@ module Vmpooler
     def ensure_connected(connection, credentials)
       connection.serviceInstance.CurrentTime
     rescue
-      $metrics.increment("connect.open")
-      connect_to_vsphere $credentials
+      si = connect_to_vsphere $credentials
+      uuid = si.instanceUuid
+      $metrics.gauge('connect.open', uuid)
     end
 
     def connect_to_vsphere(credentials)
