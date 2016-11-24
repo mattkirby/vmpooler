@@ -17,6 +17,7 @@ module Vmpooler
       si = connect_to_vsphere $credentials
       uuid = si.instanceUuid
       $metrics.gauge('connect.open', uuid)
+      si
     end
 
     def connect_to_vsphere(credentials)
