@@ -26,7 +26,7 @@ module Vmpooler
                                          password: credentials['password'],
                                          insecure: credentials['insecure'] || true
     rescue => err
-      raise err if attempt >= max_attempts
+      raise "Connection failed after #{max_attempts} attempts with an error: #{err}" if attempt >= max_attempts
       $metrics.increment('connect.open.fail')
       try = attempt || 0
       backoff = try + 1
