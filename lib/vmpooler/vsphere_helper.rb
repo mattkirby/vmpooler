@@ -15,10 +15,12 @@ module Vmpooler
     def ensure_connected(connection, credentials)
       connection.serviceInstance.CurrentTime
     rescue
-      connect_to_vsphere $credentials
+      max_attempts = $config['max_attempts'] || 5
+      retry_factor = $config['retry_factor'] || 2
+      connect_to_vsphere $credentials, nil, max_attempts, retry_factor
     end
 
-    def connect_to_vsphere(credentials, attempt = nil, max_attempts = $config['max_attempts'] || 5, retry_factor = $config['retry_factor'] || 2)
+    def connect_to_vsphere(credentials, attempt, max_attempts, retry_factor)
       @connection = RbVmomi::VIM.connect host: credentials['server'],
                                          user: credentials['username'],
                                          password: credentials['password'],
