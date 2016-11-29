@@ -25,9 +25,9 @@ module Vmpooler
                                          insecure: credentials['insecure'] || true
     rescue => err
       err_message = "Connection failed after #{max_attempts} attempts with an error: #{err}"
-      raise err_message if attempt >= max_attempts
       $metrics.increment('connect.fail')
       try = attempt || 0
+      raise err_message if try >= max_attempts
       backoff = try + 1
       sleep(backoff)
       connect_to_vsphere $credentials, backoff
