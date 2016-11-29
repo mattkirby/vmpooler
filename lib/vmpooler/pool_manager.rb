@@ -414,7 +414,7 @@ module Vmpooler
     def check_disk_queue
       $logger.log('d', "[*] [disk_manager] starting worker thread")
 
-      $vsphere['disk_manager'] ||= Vmpooler::VsphereHelper.new $config[:vsphere], $metrics
+      $vsphere['disk_manager'] ||= Vmpooler::VsphereHelper.new $config, $metrics
 
       $threads['disk_manager'] = Thread.new do
         loop do
@@ -440,7 +440,7 @@ module Vmpooler
     def check_snapshot_queue
       $logger.log('d', "[*] [snapshot_manager] starting worker thread")
 
-      $vsphere['snapshot_manager'] ||= Vmpooler::VsphereHelper.new $config[:vsphere], $metrics
+      $vsphere['snapshot_manager'] ||= Vmpooler::VsphereHelper.new $config, $metrics
 
       $threads['snapshot_manager'] = Thread.new do
         loop do
@@ -548,7 +548,7 @@ module Vmpooler
     def check_pool(pool)
       $logger.log('d', "[*] [#{pool['name']}] starting worker thread")
 
-      $vsphere[pool['name']] ||= Vmpooler::VsphereHelper.new $config[:vsphere], $metrics
+      $vsphere[pool['name']] ||= Vmpooler::VsphereHelper.new $config, $metrics
 
       $threads[pool['name']] = Thread.new do
         loop do
