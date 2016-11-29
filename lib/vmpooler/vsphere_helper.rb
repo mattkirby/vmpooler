@@ -17,7 +17,7 @@ module Vmpooler
       connect_to_vsphere $credentials
     end
 
-    def connect_to_vsphere(credentials, attempt = nil, max_attempts = 5)
+    def connect_to_vsphere(credentials, attempt = nil, max_attempts = Vmpooler.config[:config]['max_attempts'])
       @connection = RbVmomi::VIM.connect host: credentials['server'],
                                          user: credentials['username'],
                                          password: credentials['password'],
