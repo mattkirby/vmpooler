@@ -15,8 +15,9 @@ module Vmpooler
     def ensure_connected(connection, credentials)
       connection.serviceInstance.CurrentTime
     rescue
-      max_attempts = $config['max_attempts'] || 5
-      retry_factor = $config['retry_factor'] || 2
+      #max_attempts = $config['max_attempts'] || 5
+      #retry_factor = $config['retry_factor'] || 2
+      max_attempts, retry_factor = [3,2]
       connect_to_vsphere $credentials, nil, max_attempts, retry_factor
     end
 
