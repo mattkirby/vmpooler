@@ -5,7 +5,8 @@ module Vmpooler
     ADAPTER_TYPE = 'lsiLogic'
     DISK_TYPE = 'thin'
     DISK_MODE = 'persistent'
-    MAX_ATTEMPTS = Vmpooler.config[:config]['max_attempts']
+    MAX_ATTEMPTS = Vmpooler.config[:config]['max_attempts'] || 5
+    RETRY_FACTOR = Vmpooler.config[:config]['retry_factor'] || 2
 
     def initialize(credentials, metrics)
       $credentials = credentials
@@ -18,7 +19,7 @@ module Vmpooler
       connect_to_vsphere $credentials
     end
 
-    def connect_to_vsphere(credentials, attempt = nil, max_attempts = MAX_ATTEMPTS)
+    def connect_to_vsphere(credentials, attempt = nil, max_attempts = MAX_ATTEMPTS, retry_factor = RETRY_FACTOR)
       @connection = RbVmomi::VIM.connect host: credentials['server'],
                                          user: credentials['username'],
                                          password: credentials['password'],
@@ -27,10 +28,10 @@ module Vmpooler
     rescue => err
       $metrics.increment('connect.fail')
       try = attempt || 1
-      backoff = try * 2
+      backoff = try * retry_factor
       sleep(backoff)
       raise "After #{max_attempts} attempts. #{err}" if try >= max_attempts
-      connect_to_vsphere $credentials, backoff
+      connect_to_vsphere $credentials, try
     end
 
     def add_disk(vm, size, datastore)
