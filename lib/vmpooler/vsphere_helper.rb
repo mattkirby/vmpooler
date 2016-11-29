@@ -32,7 +32,7 @@ module Vmpooler
       backoff = try * retry_factor
       sleep(backoff)
       raise "After #{max_attempts} attempts. #{err}" if try >= max_attempts
-      connect_to_vsphere $credentials, try
+      connect_to_vsphere $credentials, try, max_attempts, retry_factor
     end
 
     def add_disk(vm, size, datastore)
