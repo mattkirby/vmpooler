@@ -25,6 +25,7 @@ module Vmpooler
                                          user: credentials['username'],
                                          password: credentials['password'],
                                          insecure: credentials['insecure'] || true
+      @connection
     rescue => err
       err_message = "Connection failed after #{max_attempts} attempts with an error: #{err}"
       raise err_message if attempt >= max_attempts
