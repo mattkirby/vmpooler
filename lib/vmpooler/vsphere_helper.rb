@@ -18,21 +18,23 @@ module Vmpooler
       connect_to_vsphere $credentials
     end
 
-    def connect_to_vsphere(credentials, attempt = nil)
-      @connection = RbVmomi::VIM.connect host: credentials['server'],
-                                         user: credentials['username'],
-                                         password: credentials['password'],
-                                         insecure: credentials['insecure'] || true
-      $metrics.increment('connect.open')
-    rescue => err
+    def connect_to_vsphere(credentials)
       max_attempts = config['max_attempts'] || 3
       retry_factor = config['retry_factor'] || 4
-      $metrics.increment('connect.fail')
-      try = attempt || 1
-      backoff = try * retry_factor
-      sleep(backoff)
-      raise "After #{max_attempts} attempts. #{err}" if try >= max_attempts
-      connect_to_vsphere $credentials, try
+      try = 0
+      begin
+        @connection = RbVmomi::VIM.connect host: credentials['server'],
+                                          user: credentials['username'],
+                                          password: credentials['password'],
+                                          insecure: credentials['insecure'] || true
+        $metrics.increment('connect.open')
+      rescue => err
+        $metrics.increment('connect.fail')
+        try += 1
+        raise "After #{max_attempts} attempts. #{err}" if try >= max_attempts
+        sleep(try * retry_factor)
+        retry
+      end
     end
 
     def add_disk(vm, size, datastore)
