@@ -14,22 +14,19 @@ module Vmpooler
     def ensure_connected(connection, credentials)
       connection.serviceInstance.CurrentTime
     rescue
-      connection = connect_to_vsphere $credentials
-      raise connection.methods
-      uuid = connection.instanceUuid
-      $metrics.gauge('connect.open', uuid)
-      @connection = connection
+      $metrics.increment('connect.open', uuid)
+      connect_to_vsphere $credentials
     end
 
     def connect_to_vsphere(credentials, attempt = nil, max_attempts = 5)
-      RbVmomi::VIM.connect host: credentials['server'],
+      @connection = RbVmomi::VIM.connect host: credentials['server'],
                            user: credentials['username'],
                            password: credentials['password'],
                            insecure: credentials['insecure'] || true
     rescue => err
       err_message = "Connection failed after #{max_attempts} attempts with an error: #{err}"
       raise err_message if attempt >= max_attempts
-      $metrics.increment('connect.open.fail')
+      $metrics.increment('connect.fail')
       try = attempt || 0
       backoff = try + 1
       sleep(backoff)
