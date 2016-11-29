@@ -14,10 +14,11 @@ module Vmpooler
     def ensure_connected(connection, credentials)
       connection.serviceInstance.CurrentTime
     rescue
-      si = connect_to_vsphere $credentials
-      uuid = si.instanceUuid
+      connection = connect_to_vsphere $credentials
+      raise connection.methods
+      uuid = connection.instanceUuid
       $metrics.gauge('connect.open', uuid)
-      @connection = si
+      @connection = connection
     end
 
     def connect_to_vsphere(credentials, attempt = nil, max_attempts = 5)
