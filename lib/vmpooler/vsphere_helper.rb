@@ -14,8 +14,8 @@ module Vmpooler
     def ensure_connected(connection, credentials)
       connection.serviceInstance.CurrentTime
     rescue
-      si = connect_to_vsphere $credentials
-      uuid = si.instanceUuid
+      connect_to_vsphere $credentials
+      uuid = @connection.instanceUuid
       $metrics.gauge('connect.open', uuid)
       si
     end
@@ -25,7 +25,6 @@ module Vmpooler
                                          user: credentials['username'],
                                          password: credentials['password'],
                                          insecure: credentials['insecure'] || true
-      @connection
     rescue => err
       err_message = "Connection failed after #{max_attempts} attempts with an error: #{err}"
       raise err_message if attempt >= max_attempts
