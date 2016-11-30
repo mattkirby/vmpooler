@@ -256,7 +256,7 @@ module Vmpooler
       cluster_hosts
     end
 
-    def find_least_used_compatible_host(vm, difference)
+    def find_least_used_compatible_host(vm, difference = 20)
       ensure_connected @connection, $credentials
 
       source_host = vm.summary.runtime.host
