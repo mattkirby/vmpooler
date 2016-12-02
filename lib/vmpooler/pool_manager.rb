@@ -162,19 +162,21 @@ module Vmpooler
 
     def _check_running_vm(vm, pool, ttl, vsphere)
       host = vsphere.find_vm(vm)
+      if ! host
+        remove_nonexistent_vm(vm, pool, 'running')
+        return
+      end
 
-      if host
-        queue_from, queue_to = 'running', 'completed'
+      queue_from, queue_to = 'running', 'completed'
 
-        # Check that VM is within defined lifetime
-        checkouttime = $redis.hget('vmpooler__active__' + pool, vm)
-        if checkouttime
-          running = (Time.now - Time.parse(checkouttime)) / 60 / 60
+      # Check that VM is within defined lifetime
+      checkouttime = $redis.hget('vmpooler__active__' + pool, vm)
+      if checkouttime
+        running = (Time.now - Time.parse(checkouttime)) / 60 / 60
 
-          if (ttl.to_i > 0) &&
-              (running.to_i >= ttl.to_i)
-            move_vm_queue(pool, vm, queue_from, queue_to, "reached end of TTL after #{ttl} hours")
-          end
+        if (ttl.to_i > 0) &&
+            (running.to_i >= ttl.to_i)
+          move_vm_queue(pool, vm, queue_from, queue_to, "reached end of TTL after #{ttl} hours")
         end
       end
     end
