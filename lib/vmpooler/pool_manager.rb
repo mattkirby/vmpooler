@@ -52,9 +52,9 @@ module Vmpooler
       fail_pending_vm(vm, pool, timeout)
     end
 
-    def remove_nonexistent_vm(vm, pool)
-      $redis.srem("vmpooler__pending__#{pool}", vm)
-      $logger.log('d', "[!] [#{pool}] '#{vm}' no longer exists. Removing from pending.")
+    def remove_nonexistent_vm(vm, pool, queue)
+      $redis.srem("vmpooler__#{queue}__#{pool}", vm)
+      $logger.log('d', "[!] [#{pool}] '#{vm}' no longer exists. Removing from #{queue}.")
     end
 
     def fail_pending_vm(vm, pool, timeout, exists=true)
@@ -67,7 +67,7 @@ module Vmpooler
           $redis.smove('vmpooler__pending__' + pool, 'vmpooler__completed__' + pool, vm)
           $logger.log('d', "[!] [#{pool}] '#{vm}' marked as 'failed' after #{timeout} minutes")
         else
-          remove_nonexistent_vm(vm, pool)
+          remove_nonexistent_vm(vm, pool, 'pending')
         end
       end
     rescue => err
