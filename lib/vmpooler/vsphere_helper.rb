@@ -23,7 +23,6 @@ module Vmpooler
       max_tries = $conf['max_tries'] || 3
       retry_factor = $conf['retry_factor'] || 10
       try = 1
-      sleep(1)
       begin
         @connection = RbVmomi::VIM.connect host: credentials['server'],
                                            user: credentials['username'],
