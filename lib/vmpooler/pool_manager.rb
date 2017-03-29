@@ -115,55 +115,55 @@ module Vmpooler
           $logger.log('d', "[!] [#{pool}] '#{vm}' reached end of TTL after #{ttl} minutes, removed from 'ready' queue")
           return
         end
+      end
 
-        check_stamp = $redis.hget('vmpooler__vm__' + vm, 'check')
+      check_stamp = $redis.hget('vmpooler__vm__' + vm, 'check')
 
-        if
-          (!check_stamp) ||
-          (((Time.now - Time.parse(check_stamp)) / 60) > $config[:config]['vm_checktime'])
+      if
+        (!check_stamp) ||
+        (((Time.now - Time.parse(check_stamp)) / 60) > $config[:config]['vm_checktime'])
 
-          $redis.hset('vmpooler__vm__' + vm, 'check', Time.now)
+        $redis.hset('vmpooler__vm__' + vm, 'check', Time.now)
 
-          host = provider.find_vm(vm)
+        host = provider.find_vm(vm)
 
-          if host
-            if
-              (host.runtime) &&
-              (host.runtime.powerState) &&
-              (host.runtime.powerState != 'poweredOn')
+        if host
+          if
+            (host.runtime) &&
+            (host.runtime.powerState) &&
+            (host.runtime.powerState != 'poweredOn')
 
-              $redis.smove('vmpooler__ready__' + pool, 'vmpooler__completed__' + pool, vm)
+            $redis.smove('vmpooler__ready__' + pool, 'vmpooler__completed__' + pool, vm)
 
-              $logger.log('d', "[!] [#{pool}] '#{vm}' appears to be powered off, removed from 'ready' queue")
-              return
-            end
-
-            if
-              (host.summary.guest) &&
-              (host.summary.guest.hostName) &&
-              (host.summary.guest.hostName != vm)
-
-              $redis.smove('vmpooler__ready__' + pool, 'vmpooler__completed__' + pool, vm)
-
-              $logger.log('d', "[!] [#{pool}] '#{vm}' has mismatched hostname, removed from 'ready' queue")
-              return
-            end
-          else
-            $redis.srem('vmpooler__ready__' + pool, vm)
-
-            $logger.log('s', "[!] [#{pool}] '#{vm}' not found in vCenter inventory, removed from 'ready' queue")
-          end
-
-          begin
-            open_socket vm
-          rescue
-            if $redis.smove('vmpooler__ready__' + pool, 'vmpooler__completed__' + pool, vm)
-              $logger.log('d', "[!] [#{pool}] '#{vm}' is unreachable, removed from 'ready' queue")
-            else
-              $logger.log('d', "[!] [#{pool}] '#{vm}' is unreachable, and failed to remove from 'ready' queue")
-            end
+            $logger.log('d', "[!] [#{pool}] '#{vm}' appears to be powered off, removed from 'ready' queue")
             return
           end
+
+          if
+            (host.summary.guest) &&
+            (host.summary.guest.hostName) &&
+            (host.summary.guest.hostName != vm)
+
+            $redis.smove('vmpooler__ready__' + pool, 'vmpooler__completed__' + pool, vm)
+
+            $logger.log('d', "[!] [#{pool}] '#{vm}' has mismatched hostname, removed from 'ready' queue")
+            return
+          end
+        else
+          $redis.srem('vmpooler__ready__' + pool, vm)
+
+          $logger.log('s', "[!] [#{pool}] '#{vm}' not found in vCenter inventory, removed from 'ready' queue")
+        end
+
+        begin
+          open_socket vm
+        rescue
+          if $redis.smove('vmpooler__ready__' + pool, 'vmpooler__completed__' + pool, vm)
+            $logger.log('d', "[!] [#{pool}] '#{vm}' is unreachable, removed from 'ready' queue")
+          else
+            $logger.log('d', "[!] [#{pool}] '#{vm}' is unreachable, and failed to remove from 'ready' queue")
+          end
+          return
         end
       end
     end
