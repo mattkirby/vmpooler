@@ -574,12 +574,12 @@ module Vmpooler
       finish
     end
 
-    def check_pool(pool, maxloop = 0, loop_delay = 5)
+    def check_pool(pool, thread, maxloop = 0, loop_delay = 5)
       $logger.log('d', "[*] [#{pool['name']}] starting worker thread")
 
-      $providers[pool['name']] ||= Vmpooler::VsphereHelper.new $config, $metrics
+      $providers[thread] ||= Vmpooler::VsphereHelper.new $config, $metrics
 
-      $threads[pool['name']] = Thread.new do
+      $threads[thread] = Thread.new do
         loop_count = 1
         loop do
           _check_pool(pool, $providers[pool['name']])
@@ -772,7 +772,7 @@ module Vmpooler
           end
           next_thread = (threads_available? $threads, 10) + 1
           $logger.log('s', "[ ] [#{pool['name']}] checking pool with slot #{next_thread}")
-          check_pool(pool, $threads[next_thread.to_s])
+          check_pool(pool, next_thread.to_s)
         end
 
         sleep(loop_delay)
