@@ -39,6 +39,11 @@ module Vmpooler
       end
     end
 
+    def threads_available?(threads, max_threads)
+      # Returns threads in use unless max is reached
+      return threads.count unless threads.count >= max_threads
+    end
+
     def _check_pending_vm(vm, pool, timeout, provider)
       host = provider.find_vm(vm)
 
@@ -761,12 +766,13 @@ module Vmpooler
         end
 
         $config[:pools].each do |pool|
-          if ! $threads[pool['name']]
-            check_pool(pool)
-          elsif ! $threads[pool['name']].alive?
-            $logger.log('d', "[!] [#{pool['name']}] worker thread died, restarting")
-            check_pool(pool)
+          while (! threads_available? $threads, 10)
+            $logger.log('s', "Waiting for an available thread to check #{pool}")
+            sleep(5)
           end
+          next_thread = (threads_available? $threads, 10) + 1
+          $logger.log('s', "[ ] [#{pool['name']}] checking pool with slot #{next_thread}")
+          check_pool(pool, $threads[next_thread.to_s])
         end
 
         sleep(loop_delay)
