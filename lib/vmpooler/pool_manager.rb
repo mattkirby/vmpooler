@@ -734,8 +734,10 @@ module Vmpooler
           end
         end
       end
+      $redis.srem('vmpooler__check__pool', pool['name'])
     rescue => err
       $logger.log('d', "[!] [#{pool['name']}] _check_pool failed with an error: #{err}")
+      $redis.srem('vmpooler__check__pool', pool['name'])
       raise
     end
 
@@ -784,8 +786,8 @@ module Vmpooler
             next_thread = (threads_available? $threads, 10) + 1
             $logger.log('s', "[ ] [#{pool['name']}] checking pool with slot #{next_thread}")
             check_pool(pool, next_thread.to_s)
-            $redis.srem('vmpooler__check__pool', pool['name'])
-            sleep(10)
+            #$redis.srem('vmpooler__check__pool', pool['name'])
+            #sleep(10)
 #            cleanup_threads $threads
           rescue => err
             $logger.log('s', "#{pool['name']} checking failed with an error: #{err}")
