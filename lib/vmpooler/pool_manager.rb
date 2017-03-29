@@ -766,20 +766,23 @@ module Vmpooler
         end
 
         $config[:pools].each do |pool|
-          pending_pools = $redis.smembers('vmpooler__check__pool__pending')
-          checking_pools = $redis.smembers('vmpooler__check__pool')
-          if checking_pools.include? pool or pending_pools.include? pool
+          pool = pool['name']
+          check_pool = 'vmpooler__check__pool'
+          pending_pool = "#{check_pool}__pending"
+          checking_pools = $redis.smembers(check_pool)
+          pending_pools = $redis.smembers(pending_pool)
+          if (checking_pools + pending_pools).include? pool
             $logger.log('s', "#{pool} is already being processed")
             next
           end
           while (! threads_available? $threads, 10)
             $logger.log('s', "Waiting for an available thread to check #{pool}")
-            $redis.sadd('vmpooler__check__pool__pending', pool) if ! $redis.smem
+            $redis.sadd(pending_pool, pool) unless $redis.smembers(pending_pool).include? pool
             sleep(5)
           end
-          $redis.srem('vmpooler__check__pool__pending') if pending_pools.include? pool
+          $redis.srem(pending_pool) if pending_pools.include? pool
           next_thread = (threads_available? $threads, 10) + 1
-          $logger.log('s', "[ ] [#{pool['name']}] checking pool with slot #{next_thread}")
+          $logger.log('s', "[ ] [#{pool}] checking pool with slot #{next_thread}")
           $redis.sadd('vmpooler__check__pool', pool)
           check_pool(pool, next_thread.to_s)
           $redis.srem('vmpooler__check__pool', pool)
