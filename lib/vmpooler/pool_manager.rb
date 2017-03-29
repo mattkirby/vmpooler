@@ -768,7 +768,7 @@ module Vmpooler
         $config[:pools].each do |pool|
           pending_pools = $redis.smembers('vmpooler__check__pool__pending')
           checking_pools = $redis.smembers('vmpooler__check__pool')
-          if checking_pools.include? pool or if pending_pools.include? pool
+          if checking_pools.include? pool or pending_pools.include? pool
             $logger.log('s', "#{pool} is already being processed")
             next
           end
@@ -783,7 +783,6 @@ module Vmpooler
           $redis.sadd('vmpooler__check__pool', pool)
           check_pool(pool, next_thread.to_s)
           $redis.srem('vmpooler__check__pool', pool)
-          end
         end
 
         sleep(loop_delay)
