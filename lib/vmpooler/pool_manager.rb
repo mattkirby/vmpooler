@@ -773,6 +773,7 @@ module Vmpooler
               $logger.log('s', "#{pool['name']} is already being processed")
               next
             end
+            $redis.sadd('vmpooler__check__pool', pool['name']) unless $redis.smembers('vmpooler__check__pool__pending').include? pool['name']
             $redis.sadd('vmpooler__check__pool__pending', pool['name']) unless $redis.smembers('vmpooler__check__pool__pending').include? pool['name']
             while (! threads_available? $threads, 10)
               $logger.log('s', "Waiting for an available thread to check #{pool['name']}")
