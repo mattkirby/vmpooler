@@ -21,9 +21,8 @@ module Vmpooler
 
     # Check the state of a VM
     def check_pending_vm(vm, pool, timeout, provider)
-      Thread.new do
-        _check_pending_vm(vm, pool, timeout, provider)
-      end
+      #Thread.new do
+      _check_pending_vm(vm, pool, timeout, provider)
     end
 
     def open_socket(host, domain=nil, timeout=5, port=22, &block)
@@ -108,14 +107,13 @@ module Vmpooler
     end
 
     def check_ready_vm(vm, pool, ttl, provider)
-      Thread.new do
-        if ttl > 0
-          if (((Time.now - host.runtime.bootTime) / 60).to_s[/^\d+\.\d{1}/].to_f) > ttl
-            $redis.smove('vmpooler__ready__' + pool, 'vmpooler__completed__' + pool, vm)
+      #Thread.new do
+      if ttl > 0
+        if (((Time.now - host.runtime.bootTime) / 60).to_s[/^\d+\.\d{1}/].to_f) > ttl
+          $redis.smove('vmpooler__ready__' + pool, 'vmpooler__completed__' + pool, vm)
 
-            $logger.log('d', "[!] [#{pool}] '#{vm}' reached end of TTL after #{ttl} minutes, removed from 'ready' queue")
-            return
-          end
+          $logger.log('d', "[!] [#{pool}] '#{vm}' reached end of TTL after #{ttl} minutes, removed from 'ready' queue")
+          return
         end
 
         check_stamp = $redis.hget('vmpooler__vm__' + vm, 'check')
@@ -171,9 +169,8 @@ module Vmpooler
     end
 
     def check_running_vm(vm, pool, ttl, provider)
-      Thread.new do
-        _check_running_vm(vm, pool, ttl, provider)
-      end
+      #Thread.new do
+      _check_running_vm(vm, pool, ttl, provider)
     end
 
     def _check_running_vm(vm, pool, ttl, provider)
@@ -202,13 +199,12 @@ module Vmpooler
 
     # Clone a VM
     def clone_vm(pool, provider)
-      Thread.new do
-        begin
-          _clone_vm(pool, provider)
-        rescue => err
-          $logger.log('s', "[!] [#{pool['name']}] failed while cloning VM with an error: #{err}")
-          raise
-        end
+      #Thread.new do
+      begin
+        _clone_vm(pool, provider)
+      rescue => err
+        $logger.log('s', "[!] [#{pool['name']}] failed while cloning VM with an error: #{err}")
+        raise
       end
     end
 
@@ -310,41 +306,39 @@ module Vmpooler
 
     # Destroy a VM
     def destroy_vm(vm, pool, provider)
-      Thread.new do
-        $redis.srem('vmpooler__completed__' + pool, vm)
-        $redis.hdel('vmpooler__active__' + pool, vm)
-        $redis.hset('vmpooler__vm__' + vm, 'destroy', Time.now)
+      #Thread.new do
+      $redis.srem('vmpooler__completed__' + pool, vm)
+      $redis.hdel('vmpooler__active__' + pool, vm)
+      $redis.hset('vmpooler__vm__' + vm, 'destroy', Time.now)
 
-        # Auto-expire metadata key
-        $redis.expire('vmpooler__vm__' + vm, ($config[:redis]['data_ttl'].to_i * 60 * 60))
+      # Auto-expire metadata key
+      $redis.expire('vmpooler__vm__' + vm, ($config[:redis]['data_ttl'].to_i * 60 * 60))
 
-        host = provider.find_vm(vm)
+      host = provider.find_vm(vm)
 
-        if host
-          start = Time.now
+      if host
+        start = Time.now
 
-          if
-            (host.runtime) &&
-            (host.runtime.powerState) &&
-            (host.runtime.powerState == 'poweredOn')
+        if
+          (host.runtime) &&
+          (host.runtime.powerState) &&
+          (host.runtime.powerState == 'poweredOn')
 
-            $logger.log('d', "[ ] [#{pool}] '#{vm}' is being shut down")
-            host.PowerOffVM_Task.wait_for_completion
-          end
-
-          host.Destroy_Task.wait_for_completion
-          finish = '%.2f' % (Time.now - start)
-
-          $logger.log('s', "[-] [#{pool}] '#{vm}' destroyed in #{finish} seconds")
-          $metrics.timing("destroy.#{pool}", finish)
+          $logger.log('d', "[ ] [#{pool}] '#{vm}' is being shut down")
+          host.PowerOffVM_Task.wait_for_completion
         end
+
+        host.Destroy_Task.wait_for_completion
+        finish = '%.2f' % (Time.now - start)
+
+        $logger.log('s', "[-] [#{pool}] '#{vm}' destroyed in #{finish} seconds")
+        $metrics.timing("destroy.#{pool}", finish)
       end
     end
 
     def create_vm_disk(vm, disk_size, provider)
-      Thread.new do
-        _create_vm_disk(vm, disk_size, provider)
-      end
+      #Thread.new do
+      _create_vm_disk(vm, disk_size, provider)
     end
 
     def _create_vm_disk(vm, disk_size, provider)
@@ -382,9 +376,8 @@ module Vmpooler
     end
 
     def create_vm_snapshot(vm, snapshot_name, provider)
-      Thread.new do
-        _create_vm_snapshot(vm, snapshot_name, provider)
-      end
+      #Thread.new do
+      _create_vm_snapshot(vm, snapshot_name, provider)
     end
 
     def _create_vm_snapshot(vm, snapshot_name, provider)
@@ -411,9 +404,8 @@ module Vmpooler
     end
 
     def revert_vm_snapshot(vm, snapshot_name, provider)
-      Thread.new do
-        _revert_vm_snapshot(vm, snapshot_name, provider)
-      end
+      #Thread.new do
+      _revert_vm_snapshot(vm, snapshot_name, provider)
     end
 
     def _revert_vm_snapshot(vm, snapshot_name, provider)
@@ -517,9 +509,8 @@ module Vmpooler
     end
 
     def migrate_vm(vm, pool, provider)
-      Thread.new do
-        _migrate_vm(vm, pool, provider)
-      end
+      #Thread.new do
+      _migrate_vm(vm, pool, provider)
     end
 
     def _migrate_vm(vm, pool, provider)
@@ -773,11 +764,12 @@ module Vmpooler
         end
 
         $config[:pools].each do |pool|
+          $redis.sadd(pending_pool, pool['name']) unless $redis.smembers(pending_pool).include? pool['name']
           check_pool = 'vmpooler__check__pool'
           pending_pool = "#{check_pool}__pending"
           checking_pools = $redis.smembers(check_pool)
           pending_pools = $redis.smembers(pending_pool)
-          if (checking_pools + pending_pools).include? pool['name']
+          if checking_pools.include? pool['name']
             $logger.log('s', "#{pool['name']} is already being processed")
             next
           end
@@ -787,10 +779,10 @@ module Vmpooler
             sleep(5)
             cleanup_threads $threads
           end
+          $redis.sadd('vmpooler__check__pool', pool['name'])
           $redis.srem(pending_pool) if pending_pools.include? pool['name']
           next_thread = (threads_available? $threads, 10) + 1
           $logger.log('s', "[ ] [#{pool['name']}] checking pool with slot #{next_thread}")
-          $redis.sadd('vmpooler__check__pool', pool['name'])
           check_pool(pool, next_thread.to_s)
           $redis.srem('vmpooler__check__pool', pool['name'])
           cleanup_threads $threads
