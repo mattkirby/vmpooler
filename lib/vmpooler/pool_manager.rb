@@ -785,6 +785,7 @@ module Vmpooler
             $logger.log('s', "[ ] [#{pool['name']}] checking pool with slot #{next_thread}")
             check_pool(pool, next_thread.to_s)
             $redis.srem('vmpooler__check__pool', pool['name'])
+            sleep(10)
             cleanup_threads $threads
           rescue => err
             $logger.log('s', "#{pool['name']} checking failed with an error: #{err}")
