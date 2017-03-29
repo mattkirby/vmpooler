@@ -746,6 +746,9 @@ module Vmpooler
       $redis.set('vmpooler__tasks__clone', 0)
       # Clear out vmpooler__migrations since stale entries may be left after a restart
       $redis.del('vmpooler__migration')
+      # Clear pool checking state
+      $redis.del('vmpooler__check__pool')
+      $redis.del('vmpooler__check__pool__pending')
 
       loop_count = 1
       loop do
