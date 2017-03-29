@@ -582,7 +582,7 @@ module Vmpooler
       $threads[thread] = Thread.new do
         loop_count = 1
         loop do
-          _check_pool(pool, $providers[pool['name']])
+          _check_pool(pool, $providers[thread])
           sleep(loop_delay)
 
           unless maxloop.zero?
