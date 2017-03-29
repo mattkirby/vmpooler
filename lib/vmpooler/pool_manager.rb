@@ -765,23 +765,20 @@ module Vmpooler
 
         $config[:pools].each do |pool|
           begin
-            check_pool_redis = 'vmpooler__check__pool'
-            pending_pool_redis = "#{check_pool_redis}__pending"
-            $redis.sadd(pending_pool_redis, pool['name']) unless $redis.smembers(pending_pool_redis).include? pool['name']
-            checking_pools = $redis.smembers(check_pool_redis)
+            checking_pools = $redis.smembers('vmpooler__check__pool')
             if checking_pools.include? pool['name']
               $logger.log('s', "#{pool['name']} is already being processed")
               next
             end
+            check_pool_redis = 'vmpooler__check__pool'
+            $redis.sadd('vmpooler__check__pool__pending', pool['name']) unless $redis.smembers('vmpooler__check__pool__pending').include? pool['name']
             while (! threads_available? $threads, 10)
               $logger.log('s', "Waiting for an available thread to check #{pool['name']}")
-              $redis.sadd(pending_pool_redis, pool['name']) unless $redis.smembers(pending_pool_redis).include? pool['name']
               sleep(5)
               cleanup_threads $threads
             end
             $redis.sadd(check_pool_redis, pool['name'])
-            pending_pools = $redis.smembers(pending_pool_redis)
-            $redis.srem(pending_pool_redis, pool['name']) if pending_pools.include? pool['name']
+            $redis.srem(pending_pool_redis, pool['name'])
             next_thread = (threads_available? $threads, 10) + 1
             $logger.log('s', "[ ] [#{pool['name']}] checking pool with slot #{next_thread}")
             check_pool(pool, next_thread.to_s)
