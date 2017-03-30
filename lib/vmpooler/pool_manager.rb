@@ -787,15 +787,12 @@ module Vmpooler
               sleep(5)
               #cleanup_threads $threads
             end
-            #next if ! $redis.sadd('vmpooler__check__pool', pool['name'])
-            #next if ! $redis.srem('vmpooler__check__pool__pending', pool['name'])
+            $redis.sadd('vmpooler__check__pool', pool['name'])
+            $redis.srem('vmpooler__check__pool__pending', pool['name'])
             next_slot = (slots_available? $redis.smembers('vmpooler__check__pool').count, $config[:config]['task_limit'].to_i) + 1
             $logger.log('s', "[ ] [#{pool['name']}] checking pool with slot #{next_slot}")
             $redis.hset("vmpooler__pool__#{pool}", 'slot', next_slot)
             check_pool(pool, next_slot.to_s)
-            #$redis.srem('vmpooler__check__pool', pool['name'])
-            #sleep(10)
-#            cleanup_threads $threads
           rescue => err
             $logger.log('s', "#{pool['name']} checking failed with an error: #{err}")
           end
