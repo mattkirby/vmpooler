@@ -752,6 +752,10 @@ module Vmpooler
       # Clear out vmpooler__migrations since stale entries may be left after a restart
       $redis.del('vmpooler__migration')
       # Clear pool checking state
+      to_clear = $redis.smembers('vmpooler__check__pool')
+      to_clear.each do |pool_name|
+        $redis.del("vmpooler__pool__#{pool_name}")
+      end
       $redis.del('vmpooler__check__pool')
       $redis.del('vmpooler__check__pool__pending')
 
@@ -773,7 +777,7 @@ module Vmpooler
 
         $config[:pools].each do |pool|
           begin
-            if $redis.hget("vmpooler__pool__#{pool}", 'slot')
+            if $redis.hget("vmpooler__pool__#{pool['name']}", 'slot')
               $logger.log('s', "#{pool['name']} is already being worked")
               next
             end
@@ -794,7 +798,7 @@ module Vmpooler
             $redis.srem('vmpooler__check__pool__pending', pool['name'])
             next_slot = (slots_available? $redis.smembers('vmpooler__check__pool').count, $config[:config]['task_limit'].to_i) + 1
             $logger.log('s', "[ ] [#{pool['name']}] checking pool with slot #{next_slot}")
-            $redis.hset("vmpooler__pool__#{pool}", 'slot', next_slot)
+            $redis.hset("vmpooler__pool__#{pool['name']}", 'slot', next_slot)
             check_pool(pool, next_slot.to_s)
           rescue => err
             $logger.log('s', "#{pool['name']} checking failed with an error: #{err}")
