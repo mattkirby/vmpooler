@@ -40,7 +40,7 @@ module Vmpooler
 
     def slots_available?(slots, max_slots)
       # Returns slots in use unless max is reached
-      return slots.count unless slots.count >= max_slots
+      return slots unless slots >= max_slots
     end
 
     def cleanup_threads(threads)
@@ -776,12 +776,12 @@ module Vmpooler
               sleep(10)
               next
             end
-            $redis.sadd('vmpooler__check__pool__pending', pool['name']) unless $redis.smembers('vmpooler__check__pool__pending').include? pool['name']
+            $redis.sadd('vmpooler__check__pool__pending', pool['name']) # unless $redis.smembers('vmpooler__check__pool__pending').include? pool['name']
             #while (! threads_available? $threads, $config[:config]['task_limit'].to_i)
-            while (! slots_available? $redis.smembers('vmpooler__check__pool'), $config[:config]['task_limit'].to_i)
+            while (! slots_available? $redis.smembers('vmpooler__check__pool').count, $config[:config]['task_limit'].to_i)
               $logger.log('s', "Waiting for an available thread to check #{pool['name']}")
               sleep(5)
-              cleanup_threads $threads
+              #cleanup_threads $threads
             end
             next if ! $redis.sadd('vmpooler__check__pool', pool['name'])
             next if ! $redis.srem('vmpooler__check__pool__pending', pool['name'])
