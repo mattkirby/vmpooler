@@ -575,10 +575,8 @@ module Vmpooler
     def check_pool(pool, slot, maxloop = 0, loop_delay = 5)
       $redis.sadd('vmpooler__check__pool', pool['name'])
       $redis.srem('vmpooler__check__pool__pending', pool['name'])
-      slots_free = slots_available? $redis.smembers('vmpooler__check__pool').count, $config[:config]['task_limit'].to_i
-      next_slot = slots_free.to_i + 1
-      $logger.log('s', "[ ] [#{pool['name']}] checking pool with slot #{next_slot}")
-      $redis.hset("vmpooler__pool__#{pool['name']}", 'slot', next_slot)
+      $logger.log('s', "[ ] [#{pool['name']}] checking pool with slot #{slot}")
+      $redis.hset("vmpooler__pool__#{pool['name']}", 'slot', slot)
 
       $providers[slot] ||= Vmpooler::VsphereHelper.new $config, $metrics
 
@@ -788,6 +786,9 @@ module Vmpooler
               $logger.log('s', "Waiting for an available slot to check #{pool['name']}")
               sleep(5)
             end
+            slots_free = slots_available?(
+              $redis.smembers('vmpooler__check__pool').count, $config[:config]['task_limit'].to_i)
+            next_slot = slots_free.to_i + 1
             check_pool(pool, next_slot.to_s)
           rescue => err
             $logger.log('s', "#{pool['name']} checking failed with an error: #{err}")
