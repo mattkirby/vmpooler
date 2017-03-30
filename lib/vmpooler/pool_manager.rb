@@ -752,6 +752,8 @@ module Vmpooler
       end
       $redis.del('vmpooler__check__pool')
       $redis.del('vmpooler__check__pool__pending')
+      # temp
+      $redis.del('vsphere_connect_open')
 
       loop_count = 1
       loop do
