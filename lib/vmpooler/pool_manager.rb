@@ -38,9 +38,9 @@ module Vmpooler
       end
     end
 
-    def threads_available?(threads, max_threads)
-      # Returns threads in use unless max is reached
-      return threads.count unless threads.count >= max_threads
+    def slots_available?(slots, max_slots)
+      # Returns slots in use unless max is reached
+      return slots.count unless slots.count >= max_slots
     end
 
     def cleanup_threads(threads)
@@ -773,19 +773,21 @@ module Vmpooler
             checking_pools = $redis.smembers('vmpooler__check__pool') + $redis.smembers('vmpooler__check__pool__pending')
             if checking_pools.include? pool['name']
               $logger.log('s', "#{pool['name']} is already being processed")
+              sleep(10)
               next
             end
             $redis.sadd('vmpooler__check__pool__pending', pool['name']) unless $redis.smembers('vmpooler__check__pool__pending').include? pool['name']
-            while (! threads_available? $threads, $config[:config]['task_limit'].to_i)
+            #while (! threads_available? $threads, $config[:config]['task_limit'].to_i)
+            while (! slots_available? $redis.smembers('vmpooler__check__pool'), $config[:config]['task_limit'].to_i)
               $logger.log('s', "Waiting for an available thread to check #{pool['name']}")
               sleep(5)
               cleanup_threads $threads
             end
             next if ! $redis.sadd('vmpooler__check__pool', pool['name'])
             next if ! $redis.srem('vmpooler__check__pool__pending', pool['name'])
-            next_thread = (threads_available? $threads, $config[:config]['task_limit'].to_i) + 1
-            $logger.log('s', "[ ] [#{pool['name']}] checking pool with slot #{next_thread}")
-            check_pool(pool, next_thread.to_s)
+            next_slot = (slots_available? $redis.smembers('vmpooler__check__pool'), $config[:config]['task_limit'].to_i) + 1
+            $logger.log('s', "[ ] [#{pool['name']}] checking pool with slot #{next_slot}")
+            check_pool(pool, next_slot.to_s)
             #$redis.srem('vmpooler__check__pool', pool['name'])
             #sleep(10)
 #            cleanup_threads $threads
