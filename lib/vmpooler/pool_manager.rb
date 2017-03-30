@@ -776,14 +776,14 @@ module Vmpooler
               next
             end
             $redis.sadd('vmpooler__check__pool__pending', pool['name']) unless $redis.smembers('vmpooler__check__pool__pending').include? pool['name']
-            while (! threads_available? $threads, 10)
+            while (! threads_available? $threads, $config[:config]['task_limit'].to_i)
               $logger.log('s', "Waiting for an available thread to check #{pool['name']}")
               sleep(5)
               cleanup_threads $threads
             end
             next if ! $redis.sadd('vmpooler__check__pool', pool['name'])
             next if ! $redis.srem('vmpooler__check__pool__pending', pool['name'])
-            next_thread = (threads_available? $threads, 10) + 1
+            next_thread = (threads_available? $threads, $config[:config]['task_limit'].to_i) + 1
             $logger.log('s', "[ ] [#{pool['name']}] checking pool with slot #{next_thread}")
             check_pool(pool, next_thread.to_s)
             #$redis.srem('vmpooler__check__pool', pool['name'])
