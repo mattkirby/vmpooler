@@ -797,7 +797,7 @@ module Vmpooler
             $redis.sadd('vmpooler__check__pool', pool['name'])
             $redis.srem('vmpooler__check__pool__pending', pool['name'])
             slots_free = slots_available? $redis.smembers('vmpooler__check__pool').count, $config[:config]['task_limit'].to_i
-            next_slot = slots_free + 1
+            next_slot = slots_free.to_i + 1
             $logger.log('s', "[ ] [#{pool['name']}] checking pool with slot #{next_slot}")
             $redis.hset("vmpooler__pool__#{pool['name']}", 'slot', next_slot)
             check_pool(pool, next_slot.to_s)
