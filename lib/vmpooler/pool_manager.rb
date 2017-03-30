@@ -773,7 +773,10 @@ module Vmpooler
 
         $config[:pools].each do |pool|
           begin
-            next if $redis.hget("vmpooler__pool__#{pool}", 'slot')
+            if $redis.hget("vmpooler__pool__#{pool}", 'slot')
+              $logger.log('s', "#{pool['name']} is already being worked")
+              next
+            end
             checking_pools = $redis.smembers('vmpooler__check__pool__pending')
             if checking_pools.include? pool['name']
               $logger.log('s', "#{pool['name']} is already being processed")
