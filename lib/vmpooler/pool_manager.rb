@@ -730,8 +730,12 @@ module Vmpooler
           end
         end
       end
+      $redis.srem('vmpooler__check__pool', pool['name'])
+      $redis.hdel("vmpooler__pool__#{pool['name']}", 'slot')
     rescue => err
       $logger.log('d', "[!] [#{pool['name']}] _check_pool failed with an error: #{err}")
+      $redis.srem('vmpooler__check__pool', pool['name'])
+      $redis.hdel("vmpooler__pool__#{pool['name']}", 'slot')
       raise
     end
 
