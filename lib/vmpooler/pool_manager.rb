@@ -743,14 +743,14 @@ module Vmpooler
       $redis.set('vmpooler__tasks__clone', 0)
       # Clear out vmpooler__migrations since stale entries may be left after a restart
       $redis.del('vmpooler__migration')
+      # Clear out vmpooler__check__pool entries to ensure starting with a clean state
+      $redis.del('vmpooler__check__pool')
+      $redis.del('vmpooler__check__pool__pending')
+      # Clear out pool entries used to track slot usage
       to_clear = $redis.smembers('vmpooler__check__pool')
       to_clear.each do |pool_name|
         $redis.del("vmpooler__pool__#{pool_name}")
       end
-      $redis.del('vmpooler__check__pool')
-      $redis.del('vmpooler__check__pool__pending')
-      # temp
-      $redis.del('vsphere_connect_open')
 
       loop_count = 1
       loop do
@@ -768,14 +768,13 @@ module Vmpooler
           check_snapshot_queue
         end
 
+        task_limit = $config[:config]['task_limit']
         $config[:pools].each do |pool|
-#         begin
+          begin
             next if $redis.hget("vmpooler__pool__#{pool['name']}", 'slot')
             checking_pools = $redis.smembers('vmpooler__check__pool__pending')
             next if checking_pools.include? pool['name']
             $redis.sadd('vmpooler__check__pool__pending', pool['name'])
-#           task_limit = $config[:config]['task_limit'] || 5
-            task_limit = 5
             while (slots_available?($redis.smembers('vmpooler__check__pool').count, task_limit.to_i) == nil)
               $logger.log('s', "Waiting for an available slot to check #{pool['name']}")
               sleep(loop_delay)
@@ -783,11 +782,11 @@ module Vmpooler
             slots_free = slots_available?($redis.smembers('vmpooler__check__pool').count, task_limit)
             next_slot = slots_free.to_i + 1
             check_pool(pool, next_slot.to_s)
-#         rescue => err
-#           $logger.log('s', "#{pool['name']} checking failed with an error: #{err}")
-#           raise
-#         end
+          rescue => err
+            $logger.log('d', "[!] [#{pool['name']}] checking failed with an error: #{err}")
+            raise
           end
+        end
 
         sleep(loop_delay)
 

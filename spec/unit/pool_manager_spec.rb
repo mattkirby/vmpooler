@@ -1673,6 +1673,8 @@ EOT
     let(:config) {
       YAML.load(<<-EOT
 ---
+:config:
+  task_limit: 10
 :pools:
   - name: #{pool}
 EOT
