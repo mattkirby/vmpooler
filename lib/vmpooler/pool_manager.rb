@@ -780,7 +780,7 @@ module Vmpooler
             $redis.sadd('vmpooler__check__pool__pending', pool['name'])
             while (slots_available?($redis.smembers('vmpooler__check__pool').count, task_limit.to_i) == nil)
               $logger.log('s', "Waiting for an available slot to check #{pool['name']}")
-              sleep(loop_delay)
+              sleep(loop_delay * 5)
             end
             slots_free = slots_available?($redis.smembers('vmpooler__check__pool').count, task_limit)
             next_slot = slots_free.to_i + 1
