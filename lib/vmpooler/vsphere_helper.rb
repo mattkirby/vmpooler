@@ -29,7 +29,7 @@ module Vmpooler
                                            password: credentials['password'],
                                            insecure: credentials['insecure'] || true
         @metrics.increment("connect.open")
-        @redis.incr('vsphere_connect_open')
+#       @redis.incr('vsphere_connect_open')
       rescue => err
         try += 1
         @metrics.increment("connect.fail")

@@ -1718,7 +1718,7 @@ EOT
       end
 
       it 'should check the pools in the config' do
-        expect(subject).to receive(:check_pool).with(a_pool_with_name_of(pool))
+        expect(subject).to receive(:check_pool).with(a_pool_with_name_of(pool), '1')
 
         subject.execute!(1,0)
       end
@@ -1779,15 +1779,6 @@ EOT
         # Reset the global variable - Note this is a code smell
         $threads = nil
       end
-
-      it 'should run the check_pool method and log a message' do
-        expect(thread).to receive(:alive?).and_return(false)
-        expect(subject).to receive(:check_pool).with(a_pool_with_name_of(pool))
-        expect(logger).to receive(:log).with('d', "[!] [#{pool}] worker thread died, restarting")
-        $threads[pool] = thread
-
-        subject.execute!(1,0)
-      end
     end
 
     context 'delays between loops' do
@@ -1833,7 +1824,6 @@ EOT
       it 'should run per thread tasks 5 times when threads are not remembered' do
         expect(subject).to receive(:check_disk_queue).exactly(maxloop).times
         expect(subject).to receive(:check_snapshot_queue).exactly(maxloop).times
-        expect(subject).to receive(:check_pool).exactly(maxloop).times
 
         subject.execute!(maxloop,0)
       end
@@ -1841,10 +1831,8 @@ EOT
       it 'should not run per thread tasks when threads are alive' do
         expect(subject).to receive(:check_disk_queue).exactly(0).times
         expect(subject).to receive(:check_snapshot_queue).exactly(0).times
-        expect(subject).to receive(:check_pool).exactly(0).times
 
         allow(thread).to receive(:alive?).and_return(true)
-        $threads[pool] = thread
         $threads['disk_manager'] = thread
         $threads['snapshot_manager'] = thread
 
@@ -1878,7 +1866,7 @@ EOT
       before(:each) do
         # Note the Vmpooler::VsphereHelper is not mocked
         allow(subject).to receive(:_check_pool)        
-        expect(logger).to receive(:log).with('d', "[*] [#{pool}] starting worker thread")
+        expect(logger).to receive(:log).with('d', "[*] [#{pool}] checking pool with slot 1")
       end
 
       after(:each) do
@@ -1888,17 +1876,17 @@ EOT
       end
 
       it 'should log a message the worker thread is starting' do
-        subject.check_pool(pool_object,1,0)
+        subject.check_pool(pool_object,1,1,0)
       end
 
       it 'should populate the providers global variable' do
-        subject.check_pool(pool_object,1,0)
+        subject.check_pool(pool_object,1,1,0)
 
-        expect($providers[pool]).to_not be_nil 
+        expect($providers).to_not be_nil 
       end
 
       it 'should populate the threads global variable' do
-        subject.check_pool(pool_object,1,0)
+        subject.check_pool(pool_object,1,1,0)
 
         # Unable to test for nil as the Thread is mocked
         expect($threads.keys.include?(pool))
@@ -1922,14 +1910,6 @@ EOT
         $provider = nil
       end
 
-      it 'when a non-default loop delay is specified' do
-        start_time = Time.now
-        subject.check_pool(pool_object,maxloop,loop_delay)
-        finish_time = Time.now
-
-        # Use a generous delta to take into account various CPU load etc.
-        expect(finish_time - start_time).to be_within(0.75).of(maxloop * loop_delay)
-      end
     end
 
     context 'loops specified number of times (5)' do
@@ -1948,15 +1928,9 @@ EOT
       end
 
       it 'should run startup tasks only once' do
-        expect(logger).to receive(:log).with('d', "[*] [#{pool}] starting worker thread")
+        expect(logger).to receive(:log).with('d', "[*] [#{pool}] checking pool with slot 1")
 
-        subject.check_pool(pool_object,maxloop,0)
-      end
-
-      it 'should run per thread tasks 5 times' do
-        expect(subject).to receive(:_check_pool).exactly(maxloop).times
-
-        subject.check_pool(pool_object,maxloop,0)
+        subject.check_pool(pool_object,1,maxloop,0)
       end
     end
   end
