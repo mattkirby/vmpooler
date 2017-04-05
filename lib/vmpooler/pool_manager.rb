@@ -746,14 +746,14 @@ module Vmpooler
       $redis.set('vmpooler__tasks__clone', 0)
       # Clear out vmpooler__migrations since stale entries may be left after a restart
       $redis.del('vmpooler__migration')
-      # Clear out vmpooler__check__pool entries to ensure starting with a clean state
-      $redis.del('vmpooler__check__pool')
-      $redis.del('vmpooler__check__pool__pending')
       # Clear out pool entries used to track slot usage
       to_clear = $redis.smembers('vmpooler__check__pool')
       to_clear.each do |pool_name|
         $redis.del("vmpooler__pool__#{pool_name}")
       end
+      # Clear out vmpooler__check__pool entries to ensure starting with a clean state
+      $redis.del('vmpooler__check__pool')
+      $redis.del('vmpooler__check__pool__pending')
 
       loop_count = 1
       loop do
@@ -787,7 +787,7 @@ module Vmpooler
             check_pool(pool, next_slot.to_s)
           rescue => err
             $logger.log('d', "[!] [#{pool['name']}] checking failed with an error: #{err}")
-            raise
+#           raise
           end
         end
 
