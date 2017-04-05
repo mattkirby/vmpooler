@@ -585,7 +585,6 @@ module Vmpooler
       $threads[slot] = Thread.new do
         _check_pool(pool, $providers[slot])
       end
-      sleep(loop_delay)
     end
 
     def _check_pool(pool, provider)
