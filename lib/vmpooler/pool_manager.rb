@@ -740,9 +740,7 @@ module Vmpooler
       raise
     end
 
-    def execute!(maxloop = 0, loop_delay = 1)
-      $logger.log('d', 'starting vmpooler')
-
+    def clean_stale_redis_queues
       # Clear out the tasks manager, as we don't know about any tasks at this point
       $redis.set('vmpooler__tasks__clone', 0)
       # Clear out vmpooler__migrations since stale entries may be left after a restart
@@ -755,6 +753,16 @@ module Vmpooler
       # Clear out vmpooler__check__pool entries to ensure starting with a clean state
       $redis.del('vmpooler__check__pool')
       $redis.del('vmpooler__check__pool__pending')
+    end
+
+    def execute!(maxloop = 0, loop_delay = 1)
+      $logger.log('d', 'starting vmpooler')
+
+      clean_stale_redis_queues
+
+      task_limit = $config[:config]['task_limit']
+      pools_list = $config[:pools].map { |pool| pool['name'] }
+      $logger.log('d', "[*] [pool_manager] Starting pool manager with #{task_limit} slots for #{pools_list.join(', ')}")
 
       loop_count = 1
       loop do
@@ -772,9 +780,6 @@ module Vmpooler
           check_snapshot_queue
         end
 
-        task_limit = $config[:config]['task_limit']
-        pools_list = $config[:pools].map { |pool| pool['name'] }
-        $logger.log('d', "[*] [pool_manager] Starting pool manager with #{task_limit} slots for #{pools_list.join(', ')}")
         $config[:pools].each do |pool|
           begin
             next if $redis.hget("vmpooler__pool__#{pool['name']}", 'slot')
