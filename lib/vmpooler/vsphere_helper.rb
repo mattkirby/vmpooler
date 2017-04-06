@@ -10,6 +10,7 @@ module Vmpooler
       @credentials = config[:vsphere]
       @conf = config[:config]
       @metrics = metrics
+      @redis = Redis.new
     end
 
     def ensure_connected(connection, credentials)
@@ -28,6 +29,7 @@ module Vmpooler
                                            password: credentials['password'],
                                            insecure: credentials['insecure'] || true
         @metrics.increment("connect.open")
+        @redis.incr('vsphere__connection')
       rescue => err
         try += 1
         @metrics.increment("connect.fail")

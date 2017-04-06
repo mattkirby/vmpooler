@@ -753,6 +753,7 @@ module Vmpooler
       # Clear out vmpooler__check__pool entries to ensure starting with a clean state
       $redis.del('vmpooler__check__pool')
       $redis.del('vmpooler__check__pool__pending')
+      $redis.del('vsphere__connection')
     end
 
     def execute!(maxloop = 0, loop_delay = 1)
