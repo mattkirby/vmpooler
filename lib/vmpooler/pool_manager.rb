@@ -773,6 +773,8 @@ module Vmpooler
         end
 
         task_limit = $config[:config]['task_limit']
+        pools_list = $config[:pools].map { |pool| pool['name'] }
+        $logger.log('d', "[*] [pool_manager] Starting pool manager with #{task_limit} slots for #{pools_list.join(', ')}")
         $config[:pools].each do |pool|
           begin
             next if $redis.hget("vmpooler__pool__#{pool['name']}", 'slot')
@@ -782,7 +784,7 @@ module Vmpooler
             while (slots_available?($redis.smembers('vmpooler__check__pool').count, task_limit.to_i) == nil)
               #             Make this message debug only
 #             $logger.log('s', "Waiting for an available slot to check #{pool['name']}")
-              sleep(loop_delay * 3)
+              sleep(loop_delay)
             end
             slots_free = slots_available?($redis.smembers('vmpooler__check__pool').count, task_limit)
             next_slot = slots_free.to_i + 1
