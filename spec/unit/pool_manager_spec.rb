@@ -1707,6 +1707,25 @@ EOT
         expect(redis.get('vmpooler__migration')).to be_nil
       end
 
+      it 'should clear check pool tasks' do
+        redis.sadd('vmpooler__check__pool', pool['name'])
+        subject.execute!(1,0)
+        expect(redis.get('vmpooler__check__pool')).to be_nil
+      end
+
+      it 'should clear check pool pending tasks' do
+        redis.sadd('vmpooler__check__pool__pending', pool['name'])
+        subject.execute!(1,0)
+        expect(redis.smembers('vmpooler__check__pool__pending')).to be_nil
+      end
+
+      it 'should clear all slot allocation' do
+        redis.sadd('vmpooler__check__pool', pool['name'])
+        redis.hset("vmpooler__pool__#{pool['name']}", 'slot', 1)
+        subject.execute!(1,0)
+        expect(redis.keys('vmpooler__pool*')).to eq([])
+      end
+
       it 'should run the check_disk_queue method' do
         expect(subject).to receive(:check_disk_queue)
 
@@ -1746,6 +1765,7 @@ EOT
 
         subject.execute!(1,0)
       end
+
     end
 
     context 'with dead snapshot_manager thread' do
@@ -1804,6 +1824,22 @@ EOT
       end
     end
 
+    context 'do not run check_pool if slot is already allocated for pool' do
+
+      after(:each) do
+        # Reset the global variable - Note this is a code smell
+        $threads = nil
+      end
+
+      it 'does not run check_pool when slot is allocated for pool' do
+       #redis.sadd('vmpooler__check__pool', pool['name'])
+       #redis.hset("vmpooler__pool__#{pool['name']}", 'slot', 1)
+        expect(subject).to receive(:check_pool)
+        subject.check_configured_pools(config[:task_limit])
+        subject.execute!(1,0)
+      end
+    end
+
     context 'loops specified number of times (5)' do
       let(:maxloop) { 5 }
       # Note a maxloop of zero can not be tested as it never terminates
@@ -1841,6 +1877,7 @@ EOT
         subject.execute!(maxloop,0)
       end
     end
+
   end
 
  describe "#check_pool" do
@@ -1867,8 +1904,7 @@ EOT
     context 'on startup' do
       before(:each) do
         # Note the Vmpooler::VsphereHelper is not mocked
-        allow(subject).to receive(:_check_pool)        
-        expect(logger).to receive(:log).with('d', "[*] [#{pool}] checking pool with slot 1")
+        allow(subject).to receive(:_check_pool)
       end
 
       after(:each) do
@@ -1877,14 +1913,10 @@ EOT
         $providers = nil
       end
 
-      it 'should log a message the worker thread is starting' do
-        subject.check_pool(pool_object,1,1,0)
-      end
-
       it 'should populate the providers global variable' do
         subject.check_pool(pool_object,1,1,0)
 
-        expect($providers).to_not be_nil 
+        expect($providers).to_not be_nil
       end
 
       it 'should populate the threads global variable' do
@@ -1893,6 +1925,7 @@ EOT
         # Unable to test for nil as the Thread is mocked
         expect($threads.keys.include?(pool))
       end
+
     end
 
     context 'delays between loops' do
@@ -1914,27 +1947,6 @@ EOT
 
     end
 
-    context 'loops specified number of times (5)' do
-      let(:maxloop) { 5 }
-      # Note a maxloop of zero can not be tested as it never terminates
-      before(:each) do
-        allow(logger).to receive(:log)
-        # Note the Vmpooler::VsphereHelper is not mocked
-        allow(subject).to receive(:_check_pool)
-      end
-
-      after(:each) do
-        # Reset the global variable - Note this is a code smell
-        $threads = nil
-        $provider = nil
-      end
-
-      it 'should run startup tasks only once' do
-        expect(logger).to receive(:log).with('d', "[*] [#{pool}] checking pool with slot 1")
-
-        subject.check_pool(pool_object,1,maxloop,0)
-      end
-    end
   end
 
   describe '#remove_vmpooler_migration_vm' do
