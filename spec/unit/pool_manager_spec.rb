@@ -1691,6 +1691,7 @@ EOT
       before(:each) do
         allow(subject).to receive(:check_disk_queue)
         allow(subject).to receive(:check_snapshot_queue)
+        allow(subject).to receive(:evaluate_pool)
         allow(subject).to receive(:check_pool)
         expect(logger).to receive(:log).with('d', 'starting vmpooler')
       end
@@ -1716,7 +1717,7 @@ EOT
       it 'should clear check pool pending tasks' do
         redis.sadd('vmpooler__check__pool__pending', pool['name'])
         subject.execute!(1,0)
-        expect(redis.smembers('vmpooler__check__pool__pending')).to be_nil
+        expect(redis.get('vmpooler__check__pool__pending')).to be_nil
       end
 
       it 'should clear all slot allocation' do
@@ -1739,7 +1740,7 @@ EOT
       end
 
       it 'should check the pools in the config' do
-        expect(subject).to receive(:check_pool).with(a_pool_with_name_of(pool), '1')
+        expect(subject).to receive(:evaluate_pool).with(a_pool_with_name_of(pool), 10, 0)
 
         subject.execute!(1,0)
       end
@@ -1824,22 +1825,6 @@ EOT
       end
     end
 
-    context 'do not run check_pool if slot is already allocated for pool' do
-
-      after(:each) do
-        # Reset the global variable - Note this is a code smell
-        $threads = nil
-      end
-
-      it 'does not run check_pool when slot is allocated for pool' do
-       #redis.sadd('vmpooler__check__pool', pool['name'])
-       #redis.hset("vmpooler__pool__#{pool['name']}", 'slot', 1)
-        expect(subject).to receive(:check_pool)
-        subject.check_configured_pools(config[:task_limit])
-        subject.execute!(1,0)
-      end
-    end
-
     context 'loops specified number of times (5)' do
       let(:maxloop) { 5 }
       # Note a maxloop of zero can not be tested as it never terminates
@@ -1880,13 +1865,80 @@ EOT
 
   end
 
- describe "#check_pool" do
+  describe "#evaluate_pool" do
+    let(:threads) {{}}
+
+    let(:config) {
+      YAML.load(<<-EOT
+---
+:config:
+  task_limit: 1
+:pools:
+  - name: #{pool}
+  - name: "#{pool}0"
+EOT
+      )
+    }
+
+    let(:thread) { double('thread') }
+    let(:task_limit) { 1 }
+
+    before do
+      expect(subject).not_to be_nil
+    end
+
+    context 'on evaluating pools' do
+      before(:each) do
+        allow(subject).to receive(:check_pool)
+      end
+
+      it 'should run check_pool' do
+        expect(subject).to receive(:check_pool).with(a_pool_with_name_of(pool), '1')
+        subject.evaluate_pool({'name' => pool}, task_limit)
+      end
+
+      it 'should not run check_pool when current pool is being checked' do
+        redis.hset("vmpooler__pool__#{pool}", 'slot', 1)
+        expect(subject).to_not receive(:check_pool)
+        subject.evaluate_pool({'name' => pool}, task_limit, 1, 0)
+      end
+
+      it 'should not run check_pool when no slot is free' do
+        redis.sadd('vmpooler__check__pool', pool)
+        expect(subject).to_not receive(:check_pool)
+        subject.evaluate_pool({'name' => pool}, task_limit, 1, 0)
+      end
+
+      it 'should return without running check_pool when pending pools include pool' do
+        redis.sadd('vmpooler__check__pool__pending', pool)
+        expect(subject).to_not receive(:check_pool)
+        subject.evaluate_pool({'name' => pool}, task_limit)
+      end
+
+      it 'should not run check_pool when no slots are free' do
+        redis.sadd('vmpooler__check__pool', pool)
+        expect(subject).to_not receive(:check_pool)
+        subject.evaluate_pool({'name' => "#{pool}0"}, task_limit, 1, 0)
+      end
+
+      it 'should add pool to pending queue when no slots are free' do
+        redis.sadd('vmpooler__check__pool', pool)
+        expect(subject).to_not receive(:check_pool)
+        subject.evaluate_pool({'name' => "#{pool}0"}, task_limit, 1, 0)
+        expect(redis.sismember('vmpooler__check__pool__pending', "#{pool}0")).to be true
+      end
+    end
+  end
+
+  describe "#check_pool" do
     let(:threads) {{}}
     let(:provider) {{}}
 
     let(:config) {
       YAML.load(<<-EOT
 ---
+:config:
+  task_limit: 10
 :pools:
   - name: #{pool}
 EOT

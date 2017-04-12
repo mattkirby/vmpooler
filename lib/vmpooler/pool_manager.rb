@@ -574,29 +574,36 @@ module Vmpooler
       finish
     end
 
-    def check_pool(pool, slots, maxloop = 0, loop_delay = 5)
+    def evaluate_pool(pool, slots, maxloop = 0, loop_delay = 1)
       return if $redis.hget("vmpooler__pool__#{pool['name']}", 'slot')
       checking_pools = $redis.smembers('vmpooler__check__pool__pending')
       return if checking_pools.include? pool['name']
       $redis.sadd('vmpooler__check__pool__pending', pool['name'])
       while (slots_available?($redis.smembers('vmpooler__check__pool').count, slots.to_i) == nil)
-        #             Make this message debug only
-#       $logger.log('s', "Waiting for an available slot to check #{pool['name']}")
+        #$logger.debug('s', "Waiting for an available slot to check #{pool['name']}")
         sleep(loop_delay * 3)
+        unless maxloop.zero?
+          return if loop_count >= maxloop
+          loop_count += 1
+        end
       end
       slots_free = slots_available?($redis.smembers('vmpooler__check__pool').count, slots)
       next_slot = (slots_free.to_i + 1).to_s
+      check_pool(pool, next_slot)
+    rescue => err
+      $logger.log('d', "[!] [#{pool['name']}] checking failed with an error: #{err}")
+    end
 
+    def check_pool(pool, slot, maxloop = 0, loop_delay = 5)
       $redis.sadd('vmpooler__check__pool', pool['name'])
       $redis.srem('vmpooler__check__pool__pending', pool['name'])
-      #     Make this message debug only
-#     $logger.log('d', "[*] [#{pool['name']}] checking pool with slot #{slot}")
+      #$logger.debug('d', "[*] [#{pool['name']}] checking pool with slot #{slot}")
       $redis.hset("vmpooler__pool__#{pool['name']}", 'slot', slot)
 
-      $providers[next_slot] ||= Vmpooler::VsphereHelper.new $config, $metrics
+      $providers[slot] ||= Vmpooler::VsphereHelper.new $config, $metrics
 
-      $threads[next_slot] = Thread.new do
-        _check_pool(pool, $providers[next_slot])
+      $threads[slot] = Thread.new do
+        _check_pool(pool, $providers[slot])
       end
     rescue => err
       $logger.log('d', "[!] [#{pool['name']}] checking failed with an error: #{err}")
@@ -794,7 +801,7 @@ module Vmpooler
         end
 
         $config[:pools].each do |pool|
-          check_pool(pool, task_limit)
+          evaluate_pool(pool, task_limit, loop_delay)
         end
 
         sleep(loop_delay)
