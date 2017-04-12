@@ -579,6 +579,7 @@ module Vmpooler
       checking_pools = $redis.smembers('vmpooler__check__pool__pending')
       return if checking_pools.include? pool['name']
       $redis.sadd('vmpooler__check__pool__pending', pool['name'])
+      loop_count = 1
       while (slots_available?($redis.smembers('vmpooler__check__pool').count, slots.to_i) == nil)
         #$logger.debug('s', "Waiting for an available slot to check #{pool['name']}")
         sleep(loop_delay * 3)
@@ -591,7 +592,7 @@ module Vmpooler
       next_slot = (slots_free.to_i + 1).to_s
       check_pool(pool, next_slot)
     rescue => err
-      $logger.log('d', "[!] [#{pool['name']}] checking failed with an error: #{err}")
+      $logger.log('d', "[!] [#{pool['name']}] evaluating failed with an error: #{err}")
     end
 
     def check_pool(pool, slot, maxloop = 0, loop_delay = 5)
@@ -801,7 +802,7 @@ module Vmpooler
         end
 
         $config[:pools].each do |pool|
-          evaluate_pool(pool, task_limit, loop_delay)
+          evaluate_pool(pool, task_limit, maxloop, loop_delay)
         end
 
         sleep(loop_delay)

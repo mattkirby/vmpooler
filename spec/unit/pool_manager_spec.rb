@@ -1740,7 +1740,7 @@ EOT
       end
 
       it 'should check the pools in the config' do
-        expect(subject).to receive(:evaluate_pool).with(a_pool_with_name_of(pool), 10, 0)
+        expect(subject).to receive(:evaluate_pool).with(a_pool_with_name_of(pool), 10, 1, 0)
 
         subject.execute!(1,0)
       end
