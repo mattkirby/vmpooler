@@ -37,6 +37,27 @@ describe 'Pool Manager' do
     end
   end
 
+  describe '#slots_available?' do
+    let(:slots) { 1 }
+    let(:max_slots) { 2 }
+
+    before do
+      expect(subject).not_to be_nil
+    end
+
+    it 'returns the next number of slots in use if less than the max' do
+      expect(subject.slots_available? slots, max_slots).to eq(1)
+    end
+
+    it 'returns 0 when no slots are in use' do
+      expect(subject.slots_available? 0, max_slots).to eq(0)
+    end
+
+    it 'returns nil when all slots are in use' do
+      expect(subject.slots_available? 2, max_slots).to be_nil
+    end
+  end
+
   describe '#open_socket' do
     let(:TCPSocket) { double('tcpsocket') }
     let(:socket) { double('tcpsocket') }
@@ -1866,28 +1887,13 @@ EOT
   end
 
   describe "#evaluate_pool" do
-    let(:threads) {{}}
-
-    let(:config) {
-      YAML.load(<<-EOT
----
-:config:
-  task_limit: 1
-:pools:
-  - name: #{pool}
-  - name: "#{pool}0"
-EOT
-      )
-    }
-
-    let(:thread) { double('thread') }
     let(:task_limit) { 1 }
 
     before do
       expect(subject).not_to be_nil
     end
 
-    context 'on evaluating pools' do
+    context 'on evaluating pool' do
       before(:each) do
         allow(subject).to receive(:check_pool)
       end
@@ -1909,7 +1915,7 @@ EOT
         subject.evaluate_pool({'name' => pool}, task_limit, 1, 0)
       end
 
-      it 'should return without running check_pool when pending pools include pool' do
+      it 'should not run check_pool when pending pools include requested pool' do
         redis.sadd('vmpooler__check__pool__pending', pool)
         expect(subject).to_not receive(:check_pool)
         subject.evaluate_pool({'name' => pool}, task_limit)
@@ -1919,6 +1925,12 @@ EOT
         redis.sadd('vmpooler__check__pool', pool)
         expect(subject).to_not receive(:check_pool)
         subject.evaluate_pool({'name' => "#{pool}0"}, task_limit, 1, 0)
+      end
+
+      it 'should allocate the second slot when the first is in use and task_limit is 2' do
+        redis.sadd('vmpooler__check__pool', pool)
+        expect(subject).to receive(:check_pool).with(a_pool_with_name_of("#{pool}0"), '2')
+        subject.evaluate_pool({'name' => "#{pool}0"}, 2, 1, 0)
       end
 
       it 'should add pool to pending queue when no slots are free' do
