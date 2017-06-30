@@ -751,7 +751,7 @@ module Vmpooler
     end
 
     def _select_hosts(dcname = 'opdx2', target = $target_hosts)
-      provider = get_provider_for_pool('host_selector')
+      provider = $providers['host_selector']
       raise("Missing Provider for host_selector") if provider.nil?
       a1hosts = provider.find_least_used_host('acceptance1', dcname)
       mhosts = provider.find_least_used_host('mac1', dcname)
