@@ -75,6 +75,8 @@ module Vmpooler
             connection = ensured_vsphere_connection(pool_object)
             vm_object = find_vm(vm_name, connection)
 
+            target_host_object = find_least_used_host(target_cluster_name, $target_hosts)
+            get_host_object(target_cluster_name, $target_hosts)
             return hostname if vm_object.nil?
             host_object = find_least_used_vpshere_compatible_host(vm_object)
 
@@ -171,7 +173,7 @@ module Vmpooler
             )
 
             # Choose a cluster/host to place the new VM on
-            target_host_object = find_least_used_host(target_cluster_name, connection, target_datacenter_name)
+            target_host_object = get_host_object(target_cluster_name, $target_hosts)
 
             # Put the VM in the specified folder and resource pool
             relocate_spec = RbVmomi::VIM.VirtualMachineRelocateSpec(
@@ -337,11 +339,11 @@ module Vmpooler
                                               user: provider_config['username'],
                                               password: provider_config['password'],
                                               insecure: provider_config['insecure'] || true
-            metrics.increment('connect.open')
+            #metrics.increment('connect.open')
             return connection
           rescue => err
             try += 1
-            metrics.increment('connect.fail')
+            #metrics.increment('connect.fail')
             raise err if try == max_tries
             sleep(try * retry_factor)
             retry
@@ -579,12 +581,69 @@ module Vmpooler
           (memory_usage.to_f / memory_size.to_f) * 100
         end
 
-        def find_least_used_host(cluster, connection, datacentername)
-          cluster_object = find_cluster(cluster, connection, datacentername)
-          target_hosts = get_cluster_host_utilization(cluster_object)
-          raise("There is no host candidate in vcenter that meets all the required conditions, check that the cluster has available hosts in a 'green' status, not in maintenance mode and not overloaded CPU and memory'") if target_hosts.empty?
-          least_used_host = target_hosts.sort[0][1]
-          least_used_host
+        def get_average_cluster_utilization(hosts)
+          utilization_counts = hosts.map { |host| host[0] }
+          utilization_counts(:+) / hosts.count
+        end
+
+        def build_compatible_hosts_lists(hosts, arch_version)
+          hosts_with_arch_versions = hosts.map { |host| [host[0], host[1], get_host_cpu_arch_version(host[1])] }
+          versions = hosts_with_arch_versions.map { |host| host[2] }.uniq
+          architectures = {}
+          versions.each do |version|
+            architectures[version] = []
+          end
+
+          hosts_with_arch_versions.each do |host|
+            architectures[host[2]] << [host[0], host[1], host[2]]
+          end
+
+          architectures.each do |arch|
+            targets = []
+            targets = select_least_used_hosts(arch)
+            architectures[arch] = targets
+          end
+          architectures
+        end
+
+        def select_least_used_hosts(hosts, percentage = 20)
+          average_utilization = get_average_cluster_utilization(hosts)
+          least_used_hosts = []
+          hosts_to_select = (hosts.count * (percentage / 100.0)).to_int
+          hosts_to_select = hosts_to_select % 1 unless hosts_to_select >= 0
+          hosts.each do |host|
+            least_used_hosts << host if host[0] < average_utilization
+          end
+          hosts_to_select = (least_used_hosts.count / 2) - 1 if hosts_to_select > least_used_hosts.count
+          least_used_hosts.sort[0..hosts_to_select].map { |host| host[1] }
+        end
+
+        def find_least_used_host(cluster, datacentername)
+          @connection_pool.with_metrics do |pool_object|
+            connection = ensured_vsphere_connection(pool_object)
+            cluster_object = find_cluster(cluster, connection, datacentername)
+            target_hosts = get_cluster_host_utilization(cluster_object)
+            raise("There is no host candidate in vcenter that meets all the required conditions, check that the cluster has available hosts in a 'green' status, not in maintenance mode and not overloaded CPU and memory'") if target_hosts.empty?
+
+            architectures = build_compatible_hosts_lists(target_hosts)
+            least_used_hosts = select_least_used_hosts(target_hosts)
+            least_used_hosts_list = { 'hosts' => least_used_hosts, 'architectures' => architectures }
+            least_used_hosts_list
+          end
+        end
+
+        def get_host_object(cluster, host_object = $target_hosts)
+          host = host_object['cluster'][cluster]['hosts'][0]
+          host_object['cluster'][cluster]['hosts'].delete(host)
+          host_object['cluster'][cluster]['hosts'] << host
+          host
+        end
+
+        def get_host_object_by_arch(cluster, arch, host_object = $target_hosts)
+          host = host_object['cluster'][cluster]['architectures'][0]
+          host_object['cluster'][cluster]['architectures'].delete(host)
+          host_object['cluster'][cluster]['architectures'] << host
+          host
         end
 
         def find_cluster(cluster, connection, datacentername)
@@ -606,9 +665,8 @@ module Vmpooler
           source_host = vm.summary.runtime.host
           model = get_host_cpu_arch_version(source_host)
           cluster = source_host.parent
-          target_hosts = get_cluster_host_utilization(cluster, model)
-          raise("There is no host candidate in vcenter that meets all the required conditions, check that the cluster has available hosts in a 'green' status, not in maintenance mode and not overloaded CPU and memory'") if target_hosts.empty?
-          target_host = target_hosts.sort[0][1]
+          target_host = get_host_object_by_arch(cluster.name, model, $target_hosts)
+          raise("There is no host candidate in vcenter that meets all the required conditions, check that the cluster has available hosts in a 'green' status, not in maintenance mode and not overloaded CPU and memory'") if target_host.empty?
           [target_host, target_host.name]
         end
 

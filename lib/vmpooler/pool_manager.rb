@@ -21,6 +21,9 @@ module Vmpooler
 
       # Our thread-tracker object
       $threads = {}
+
+      # Host tracking object
+      $target_hosts = {}
     end
 
     def config
@@ -729,10 +732,37 @@ module Vmpooler
       raise
     end
 
-    # Create a provider object, usually based on the providers/*.rb class, that implements providers/base.rb
-    # provider_class: Needs to match a class in the Vmpooler::PoolManager::Provider namespace. This is
-    #                 either as a gem in the LOADPATH or in providers/*.rb ie Vmpooler::PoolManager::Provider::X
-    # provider_name:  Should be a unique provider name
+    def select_hosts(maxloop = 0, loop_delay = 5)
+      $logger.log('d', "[*] [host_selector] starting worker thread")
+      $providers['host_selector'] = create_provider_object($config, $logger, $metrics, 'vsphere', 'vsphere', {}) if $providers[provider_name].nil?
+
+      $threads['host_selector'] = Thread.new do
+        loop_count = 1
+        loop do
+          _select_hosts
+          sleep(loop_delay)
+
+          unless maxloop.zero?
+            break if loop_count >= maxloop
+            loop_count += 1
+          end
+        end
+      end
+    end
+
+    def _select_hosts(dcname = 'opdx2', target = $target_hosts)
+      provider = get_provider_for_pool('host_selector')
+      raise("Missing Provider for host_selector") if provider.nil?
+      a1hosts = provider.find_least_used_host('acceptance1', dcname)
+      mhosts = provider.find_least_used_host('mac1', dcname)
+      target = { 'cluster' => { 'acceptance1' => a1hosts, 'mac1' => mhosts} }
+    rescue => e
+      $logger.log('s', "[+] [host_selector] Failed to get hosts: #{e}")
+    end
+
+    # create a provider object based on the providers/*.rb class that implements providers/base.rb
+    # provider_class: needs to match a provider class in providers/*.rb ie Vmpooler::PoolManager::Provider::X
+    # provider_name: should be a unique provider name
     #
     # returns an object Vmpooler::PoolManager::Provider::*
     # or raises an error if the class does not exist
@@ -819,6 +849,13 @@ module Vmpooler
         elsif !$threads['snapshot_manager'].alive?
           $logger.log('d', '[!] [snapshot_manager] worker thread died, restarting')
           check_snapshot_queue
+        end
+
+        if ! $threads['host_selector']
+          select_hosts
+        elsif ! $threads['host_selector'].alive?
+          $logger.log('d', "[!] [host_selector] worker thread died, restarting")
+          select_hosts
         end
 
         $config[:pools].each do |pool|
