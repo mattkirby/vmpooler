@@ -601,7 +601,7 @@ module Vmpooler
           architectures.each do |arch|
             targets = []
             targets = select_least_used_hosts(arch)
-            architectures.key(arch) = targets
+            architectures[architectures.key(arch)] = targets
           end
           architectures
         end
