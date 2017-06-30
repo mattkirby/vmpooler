@@ -583,7 +583,7 @@ module Vmpooler
 
         def get_average_cluster_utilization(hosts)
           utilization_counts = hosts.map { |host| host[0] }
-          utilization_counts(:+) / hosts.count
+          utilization_counts.inject(:+) / hosts.count
         end
 
         def build_compatible_hosts_lists(hosts)
