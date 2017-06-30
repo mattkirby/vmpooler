@@ -586,7 +586,7 @@ module Vmpooler
           utilization_counts(:+) / hosts.count
         end
 
-        def build_compatible_hosts_lists(hosts, arch_version)
+        def build_compatible_hosts_lists(hosts)
           hosts_with_arch_versions = hosts.map { |host| [host[0], host[1], get_host_cpu_arch_version(host[1])] }
           versions = hosts_with_arch_versions.map { |host| host[2] }.uniq
           architectures = {}
