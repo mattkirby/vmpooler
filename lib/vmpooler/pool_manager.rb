@@ -734,7 +734,7 @@ module Vmpooler
 
     def select_hosts(maxloop = 0, loop_delay = 5)
       $logger.log('d', "[*] [host_selector] starting worker thread")
-      $providers['host_selector'] = create_provider_object($config, $logger, $metrics, 'vsphere', 'vsphere', {}) if $providers[provider_name].nil?
+      $providers['host_selector'] = create_provider_object($config, $logger, $metrics, 'vsphere', 'vsphere', {}) if $providers['host_selector'].nil?
 
       $threads['host_selector'] = Thread.new do
         loop_count = 1
