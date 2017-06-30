@@ -598,15 +598,16 @@ module Vmpooler
             architectures[host[2]] << [host[0], host[1], host[2]]
           end
 
-          architectures.each do |arch|
+          versions.each do |version|
             targets = []
-            targets = select_least_used_hosts(arch)
-            architectures[architectures.key(arch)] = targets
+            targets = select_least_used_hosts(architectures[version])
+            architectures[version] = targets
           end
           architectures
         end
 
         def select_least_used_hosts(hosts, percentage = 20)
+          raise('Provided hosts list to select_least_used_hosts is empty') if hosts.empty?
           average_utilization = get_average_cluster_utilization(hosts)
           least_used_hosts = []
           hosts_to_select = (hosts.count * (percentage / 100.0)).to_int
