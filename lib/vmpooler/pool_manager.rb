@@ -751,13 +751,17 @@ module Vmpooler
     end
 
     def _select_hosts(dcname = 'opdx2', target = $target_hosts)
+      raise('Already running _select_hosts') if $target_hosts['checking'] == True
+      $target_hosts['checking'] = True
       provider = $providers['host_selector']
       raise("Missing Provider for host_selector") if provider.nil?
       a1hosts = provider.find_least_used_host('acceptance1', dcname)
       mhosts = provider.find_least_used_host('mac1', dcname)
       $target_hosts = { 'cluster' => { 'acceptance1' => a1hosts, 'mac1' => mhosts} }
+      $target_hosts.delete('checking')
     rescue => e
       $logger.log('s', "[+] [host_selector] Failed to get hosts: #{e}")
+      $target_hosts.delete('checking')
     end
 
     # create a provider object based on the providers/*.rb class that implements providers/base.rb
