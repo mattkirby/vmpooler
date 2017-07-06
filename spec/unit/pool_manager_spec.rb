@@ -81,6 +81,7 @@ EOT
       it 'calls move_pending_vm_to_ready if host is ready' do
         expect(provider).to receive(:vm_ready?).with(pool,vm).and_return(true)
         expect(subject).to receive(:move_pending_vm_to_ready).with(vm, pool, host)
+        expect(metrics).to receive(:timing).with(/clonetoready\./,/0/)
 
         subject._check_pending_vm(vm, pool, timeout, provider)
       end
@@ -88,6 +89,7 @@ EOT
       it 'calls fail_pending_vm if host is not ready' do
         expect(provider).to receive(:vm_ready?).with(pool,vm).and_return(false)
         expect(subject).to receive(:fail_pending_vm).with(vm, pool, timeout)
+        expect(metrics).to receive(:increment).with("failed.#{pool}")
 
         subject._check_pending_vm(vm, pool, timeout, provider)
       end

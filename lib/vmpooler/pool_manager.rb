@@ -70,6 +70,7 @@ module Vmpooler
         if exists
           $redis.smove('vmpooler__pending__' + pool, 'vmpooler__completed__' + pool, vm)
           $logger.log('d', "[!] [#{pool}] '#{vm}' marked as 'failed' after #{timeout} minutes")
+          $metrics.increment("failed.#{pool}")
         else
           remove_nonexistent_vm(vm, pool)
         end
@@ -94,6 +95,7 @@ module Vmpooler
         $redis.smove('vmpooler__pending__' + pool, 'vmpooler__ready__' + pool, vm)
         $redis.hset('vmpooler__boot__' + Date.today.to_s, pool + ':' + vm, finish)
 
+        $metrics.timing("clonetoready.#{pool_name}", finish)
         $logger.log('s', "[>] [#{pool}] '#{vm}' moved from 'pending' to 'ready' queue")
       end
     end
