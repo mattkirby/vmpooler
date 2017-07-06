@@ -751,7 +751,7 @@ module Vmpooler
     end
 
     def _select_hosts(dcname = 'opdx2', target = $target_hosts)
-      raise('Already running _select_hosts') if $target_hosts['checking'] == True
+      raise('Already running _select_hosts') unless $target_hosts['checking'].nil?
       $target_hosts['checking'] = True
       provider = $providers['host_selector']
       raise("Missing Provider for host_selector") if provider.nil?
