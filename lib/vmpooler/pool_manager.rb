@@ -752,7 +752,7 @@ module Vmpooler
 
     def _select_hosts(dcname = 'opdx2', target = $target_hosts)
       raise('Already running _select_hosts') unless $target_hosts['checking'].nil?
-      $target_hosts['checking'] = True
+      $target_hosts['checking'] = true
       provider = $providers['host_selector']
       raise("Missing Provider for host_selector") if provider.nil?
       a1hosts = provider.find_least_used_host('acceptance1', dcname)
