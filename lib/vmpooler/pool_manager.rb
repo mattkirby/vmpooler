@@ -761,6 +761,13 @@ module Vmpooler
       a1hosts = provider.find_least_used_host('acceptance1', dcname)
       mhosts = provider.find_least_used_host('mac1', dcname)
       $target_hosts = { 'cluster' => { 'acceptance1' => a1hosts, 'mac1' => mhosts} }
+      $target_hosts['cluster'].each |cluster| do
+        targets = []
+        cluster.each |c| do
+          targets << c
+        end
+        $logger.log('d', "#{cluster.name} has targets #{targets.join(', ')}")
+      end
       $target_hosts.delete('checking')
     rescue => e
       $logger.log('s', "[+] [host_selector] Failed to get hosts: #{e}")
