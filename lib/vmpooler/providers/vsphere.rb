@@ -626,7 +626,7 @@ module Vmpooler
         end
 
         def find_host_by_uuid(connection, uuid)
-          host = connection.serviceInstance.searchIndex.FindByUuid(uuid: uuid, vmSearch: false)
+          host = connection.searchIndex.FindByUuid(uuid: uuid, vmSearch: false)
           raise("Host #{uuid} cannot be found") if host.nil?
           host
         end
