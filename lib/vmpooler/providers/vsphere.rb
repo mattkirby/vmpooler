@@ -625,10 +625,14 @@ module Vmpooler
           datacenter.hostFolder.children.find { |cluster_object| cluster_object.name == cluster }
         end
 
-        def find_host_by_uuid(uuid, connection)
-          host = connection.serviceInstance.searchIndex.FindByUuid(uuid: uuid, vmSearch: false)
-          raise("Host #{uuid} cannot be found") if host.nil?
-          host
+        def find_host_by_uuid(uuid)
+          @connection_pool.with_metrics do |pool_object|
+            connection = ensured_vsphere_connection(pool_object)
+
+            host = connection.serviceInstance.searchIndex.FindByUuid(uuid: uuid, vmSearch: false)
+            raise("Host #{uuid} cannot be found") if host.nil?
+            host
+          end
         end
 
         def get_cluster_host_utilization(cluster, model = nil)
