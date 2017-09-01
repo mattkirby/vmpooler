@@ -75,7 +75,7 @@ module Vmpooler
 
             target_host_object = find_least_used_host(target_cluster_name, $target_hosts)
             return hostname if vm_object.nil?
-            host_object, hostname = find_least_used_vsphere_compatible_host(vm_object)
+            host_object, hostname = find_least_used_vsphere_compatible_host(connection, vm_object)
 
             return hostname if host_object.nil?
           end
@@ -145,7 +145,7 @@ module Vmpooler
             )
 
             # Choose a cluster/host to place the new VM on
-            target_host_object = get_host_object(target_cluster_name, $target_hosts)
+            target_host_object = get_host_object(connection, target_cluster_name, $target_hosts)
 
             # Put the VM in the specified folder and resource pool
             relocate_spec = RbVmomi::VIM.VirtualMachineRelocateSpec(
@@ -605,18 +605,18 @@ module Vmpooler
           end
         end
 
-        def get_host_object(cluster, host_object = $target_hosts)
+        def get_host_object(connection, cluster, host_object = $target_hosts)
           host = host_object['cluster'][cluster]['hosts'][0]
           host_object['cluster'][cluster]['hosts'].delete(host)
           host_object['cluster'][cluster]['hosts'] << host
-          find_host_by_uuid(host)
+          find_host_by_uuid(connection, host)
         end
 
-        def get_host_object_by_arch(cluster, arch, host_object = $target_hosts)
+        def get_host_object_by_arch(connection, cluster, arch, host_object = $target_hosts)
           host = host_object['cluster'][cluster]['architectures'][0]
           host_object['cluster'][cluster]['architectures'].delete(host)
           host_object['cluster'][cluster]['architectures'] << host
-          find_host_by_uuid(host)
+          find_host_by_uuid(connection, host)
         end
 
         def find_cluster(cluster, connection, datacentername)
@@ -625,14 +625,10 @@ module Vmpooler
           datacenter.hostFolder.children.find { |cluster_object| cluster_object.name == cluster }
         end
 
-        def find_host_by_uuid(uuid)
-          @connection_pool.with_metrics do |pool_object|
-            connection = ensured_vsphere_connection(pool_object)
-
-            host = connection.serviceInstance.searchIndex.FindByUuid(uuid: uuid, vmSearch: false)
-            raise("Host #{uuid} cannot be found") if host.nil?
-            host
-          end
+        def find_host_by_uuid(connection, uuid)
+          host = connection.serviceInstance.searchIndex.FindByUuid(uuid: uuid, vmSearch: false)
+          raise("Host #{uuid} cannot be found") if host.nil?
+          host
         end
 
         def get_cluster_host_utilization(cluster, model = nil)
@@ -644,11 +640,11 @@ module Vmpooler
           cluster_hosts
         end
 
-        def find_least_used_vsphere_compatible_host(vm)
+        def find_least_used_vsphere_compatible_host(connection, vm)
           source_host = vm.summary.runtime.host
           model = get_host_cpu_arch_version(source_host)
           cluster = source_host.parent
-          target_host_object = get_host_object_by_arch(cluster.name, model, $target_hosts)
+          target_host_object = get_host_object_by_arch(connection, cluster.name, model, $target_hosts)
           raise("There is no host candidate in vcenter that meets all the required conditions, check that the cluster has available hosts in a 'green' status, not in maintenance mode and not overloaded CPU and memory'") if target_host_object.empty?
           [target_host_object, target_host_object.name]
         end
