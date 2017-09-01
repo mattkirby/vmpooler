@@ -56,58 +56,30 @@ module Vmpooler
           vms
         end
 
-        def get_vm_host(_pool_name, vm_name)
-          host_name = nil
+        def get_vm_object(_pool_name, vm_name)
+          vm_object = nil
 
           @connection_pool.with_metrics do |pool_object|
             connection = ensured_vsphere_connection(pool_object)
             vm_object = find_vm(vm_name, connection)
-            return host_name if vm_object.nil?
+            return nil if vm_object.nil?
 
-            host_name = vm_object.summary.runtime.host.name if vm_object.summary && vm_object.summary.runtime && vm_object.summary.runtime.host
           end
-          host_name
+          vm_object
         end
 
-        def find_least_used_compatible_host(_pool_name, vm_name)
+        def find_least_used_compatible_host(_pool_name, vm_object)
           hostname = nil
           @connection_pool.with_metrics do |pool_object|
             connection = ensured_vsphere_connection(pool_object)
-            vm_object = find_vm(vm_name, connection)
 
             target_host_object = find_least_used_host(target_cluster_name, $target_hosts)
-            get_host_object(target_cluster_name, $target_hosts)
             return hostname if vm_object.nil?
-            host_object = find_least_used_vpshere_compatible_host(vm_object)
+            host_object, hostname = find_least_used_vsphere_compatible_host(vm_object)
 
             return hostname if host_object.nil?
-            hostname = host_object[0].name
           end
-          hostname
-        end
-
-        def migrate_vm_to_host(pool_name, vm_name, dest_host_name)
-          pool = pool_config(pool_name)
-          raise("Pool #{pool_name} does not exist for the provider #{name}") if pool.nil?
-
-          @connection_pool.with_metrics do |pool_object|
-            connection = ensured_vsphere_connection(pool_object)
-            vm_object = find_vm(vm_name, connection)
-            raise("VM #{vm_name} does not exist in Pool #{pool_name} for the provider #{name}") if vm_object.nil?
-
-            target_cluster_name = get_target_cluster_from_config(pool_name)
-            cluster = find_cluster(target_cluster_name, connection, get_target_datacenter_from_config(pool_name))
-            raise("Pool #{pool_name} specifies cluster #{target_cluster_name} which does not exist for the provider #{name}") if cluster.nil?
-
-            # Go through each host and initiate a migration when the correct host name is found
-            cluster.host.each do |host|
-              if host.name == dest_host_name
-                migrate_vm_host(vm_object, host)
-                return true
-              end
-            end
-          end
-          false
+          [host_object, hostname]
         end
 
         def get_vm(_pool_name, vm_name)
@@ -616,7 +588,7 @@ module Vmpooler
             least_used_hosts << host if host[0] < average_utilization
           end
           hosts_to_select = (least_used_hosts.count / 2) - 1 if hosts_to_select > least_used_hosts.count
-          least_used_hosts.sort[0..hosts_to_select].map { |host| host[1] }
+          least_used_hosts.sort[0..hosts_to_select].map { |host| host[1].hardware.systemInfo.uuid }
         end
 
         def find_least_used_host(cluster, datacentername)
@@ -653,6 +625,12 @@ module Vmpooler
           datacenter.hostFolder.children.find { |cluster_object| cluster_object.name == cluster }
         end
 
+        def find_host_by_uuid(uuid, connection)
+          host = connection.serviceInstance.searchIndex.FindByUuid(uuid: uuid, vmSearch: false)
+          raise("Host #{uuid} cannot be found") if host.nil?
+          host
+        end
+
         def get_cluster_host_utilization(cluster, model = nil)
           cluster_hosts = []
           cluster.host.each do |host|
@@ -662,13 +640,14 @@ module Vmpooler
           cluster_hosts
         end
 
-        def find_least_used_vpshere_compatible_host(vm)
+        def find_least_used_vsphere_compatible_host(vm)
           source_host = vm.summary.runtime.host
           model = get_host_cpu_arch_version(source_host)
           cluster = source_host.parent
           target_host = get_host_object_by_arch(cluster.name, model, $target_hosts)
-          raise("There is no host candidate in vcenter that meets all the required conditions, check that the cluster has available hosts in a 'green' status, not in maintenance mode and not overloaded CPU and memory'") if target_host.empty?
-          [target_host, target_host.name]
+          target_host_object = find_host_by_uuid(target_host)
+          raise("There is no host candidate in vcenter that meets all the required conditions, check that the cluster has available hosts in a 'green' status, not in maintenance mode and not overloaded CPU and memory'") if target_host_object.empty?
+          [target_host_object, target_host_object.name]
         end
 
         def find_pool(poolname, connection, datacentername)
@@ -792,9 +771,9 @@ module Vmpooler
           snapshot
         end
 
-        def migrate_vm_host(vm, host)
-          relospec = RbVmomi::VIM.VirtualMachineRelocateSpec(host: host)
-          vm.RelocateVM_Task(spec: relospec).wait_for_completion
+        def migrate_vm_host(vm_object, host_object)
+          relospec = RbVmomi::VIM.VirtualMachineRelocateSpec(host: host_object)
+          vm_object.RelocateVM_Task(spec: relospec).wait_for_completion
         end
       end
     end

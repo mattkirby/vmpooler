@@ -483,7 +483,8 @@ module Vmpooler
     def _migrate_vm(vm_name, pool_name, provider)
       $redis.srem('vmpooler__migrating__' + pool_name, vm_name)
 
-      parent_host_name = provider.get_vm_host(pool_name, vm_name)
+      vm_object = provider.get_vm_object(pool_name, vm_name)
+      parent_host_name = vm_object.summary.runtime.host.name if vm_boject.summary && vm_object.summary.runtime && vm_object.summary.runtime.host
       raise('Unable to determine which host the VM is running on') if parent_host_name.nil?
       migration_limit = migration_limit $config[:config]['migration_limit']
       migration_count = $redis.scard('vmpooler__migration')
@@ -496,11 +497,11 @@ module Vmpooler
         return
       else
         $redis.sadd('vmpooler__migration', vm_name)
-        host_name = provider.find_least_used_compatible_host(pool_name, vm_name)
-        if host_name == parent_host_name
+        target_host_object, target_host_name = provider.find_least_used_compatible_host(pool_name, vm_object)
+        if target_host_name == parent_host_name
           $logger.log('s', "[ ] [#{pool_name}] No migration required for '#{vm_name}' running on #{parent_host_name}")
         else
-          finish = migrate_vm_and_record_timing(vm_name, pool_name, parent_host_name, host_name, provider)
+          finish = migrate_vm_and_record_timing(vm_name, pool_name, parent_host_name, target_host_name, target_host_object, provider)
           $logger.log('s', "[>] [#{pool_name}] '#{vm_name}' migrated from #{parent_host_name} to #{host_name} in #{finish} seconds")
         end
         remove_vmpooler_migration_vm(pool_name, vm_name)
@@ -513,9 +514,9 @@ module Vmpooler
       $logger.log('s', "[x] [#{pool}] '#{vm}' removal from vmpooler__migration failed with an error: #{err}")
     end
 
-    def migrate_vm_and_record_timing(vm_name, pool_name, source_host_name, dest_host_name, provider)
+    def migrate_vm_and_record_timing(vm_object, pool_name, source_host_name, dest_host_name, dest_host_object, provider)
       start = Time.now
-      provider.migrate_vm_to_host(pool_name, vm_name, dest_host_name)
+      provider.migrate_vm_host(vm_object, dest_host_object)
       finish = format('%.2f', Time.now - start)
       $metrics.timing("migrate.#{pool_name}", finish)
       $metrics.increment("migrate_from.#{source_host_name}")
