@@ -755,7 +755,7 @@ module Vmpooler
 
     def get_clusters(config)
       clusters = []
-      cluster << $config[:config]['clone_target']
+      clusters << $config[:config]['clone_target']
       $config[:pools].each do |pool|
         clusters << pool['clone_target'] if pool.key?('clone_target')
       end
