@@ -588,7 +588,7 @@ module Vmpooler
             least_used_hosts << host if host[0] < average_utilization
           end
           hosts_to_select = (least_used_hosts.count / 2) - 1 if hosts_to_select > least_used_hosts.count
-          least_used_hosts.sort[0..hosts_to_select].map { |host| host[1].hardware.systemInfo.uuid }
+          least_used_hosts.sort[0..hosts_to_select].map { |host| host[1].name }
         end
 
         def find_least_used_host(cluster, datacentername)
@@ -609,14 +609,14 @@ module Vmpooler
           host = host_object['cluster'][cluster]['hosts'][0]
           host_object['cluster'][cluster]['hosts'].delete(host)
           host_object['cluster'][cluster]['hosts'] << host
-          find_host_by_uuid(connection, host)
+          find_host_by_dnsname(connection, host)
         end
 
         def get_host_object_by_arch(connection, cluster, arch, host_object = $target_hosts)
           host = host_object['cluster'][cluster]['architectures'][0]
           host_object['cluster'][cluster]['architectures'].delete(host)
           host_object['cluster'][cluster]['architectures'] << host
-          find_host_by_uuid(connection, host)
+          find_host_by_dnsname(connection, host)
         end
 
         def find_cluster(cluster, connection, datacentername)
@@ -625,10 +625,10 @@ module Vmpooler
           datacenter.hostFolder.children.find { |cluster_object| cluster_object.name == cluster }
         end
 
-        def find_host_by_uuid(connection, uuid)
-          host = connection.searchIndex.FindByUuid(uuid: uuid, vmSearch: false)
-          raise("Host #{uuid} cannot be found") if host.nil?
-          host
+        def find_host_by_dnsname(connection, dnsname)
+          host_object = connection.searchIndex.FindByDnsName(dnsName: dnsname, vmSearch: false)
+          raise("Host #{dnsname} cannot be found") if host_object.nil?
+          host_object
         end
 
         def get_cluster_host_utilization(cluster, model = nil)
