@@ -95,7 +95,7 @@ module Vmpooler
         $redis.smove('vmpooler__pending__' + pool, 'vmpooler__ready__' + pool, vm)
         $redis.hset('vmpooler__boot__' + Date.today.to_s, pool + ':' + vm, finish)
 
-        $metrics.timing("clonetoready.#{pool_name}", finish)
+        $metrics.timing("clonetoready.#{pool}", finish)
         $logger.log('s', "[>] [#{pool}] '#{vm}' moved from 'pending' to 'ready' queue")
       end
     end
@@ -484,7 +484,7 @@ module Vmpooler
       $redis.srem('vmpooler__migrating__' + pool_name, vm_name)
 
       vm_object = provider.get_vm_object(pool_name, vm_name)
-      parent_host_name = vm_object.summary.runtime.host.name if vm_boject.summary && vm_object.summary.runtime && vm_object.summary.runtime.host
+      parent_host_name = vm_object.summary.runtime.host.name if vm_object.summary && vm_object.summary.runtime && vm_object.summary.runtime.host
       raise('Unable to determine which host the VM is running on') if parent_host_name.nil?
       migration_limit = migration_limit $config[:config]['migration_limit']
       migration_count = $redis.scard('vmpooler__migration')
