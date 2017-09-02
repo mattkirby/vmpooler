@@ -753,14 +753,26 @@ module Vmpooler
       end
     end
 
+    def get_clusters(config)
+      clusters = []
+      cluster << $config[:config]['clone_target']
+      $config[:pools].each do |pool|
+        clusters << pool['clone_target'] if pool.key?('clone_target')
+      end
+      clusters.uniq
+    end
+
     def _select_hosts(dcname = 'opdx2', target = $target_hosts)
       raise('Already running _select_hosts') unless $target_hosts['checking'].nil?
       $target_hosts['checking'] = true
+      $target_hosts['cluster'] = {} unless $target_hosts.key?('cluster')
       provider = $providers['host_selector']
       raise("Missing Provider for host_selector") if provider.nil?
-      a1hosts = provider.find_least_used_host('acceptance1', dcname)
-      mhosts = provider.find_least_used_host('mac1', dcname)
-      $target_hosts = { 'cluster' => { 'acceptance1' => a1hosts, 'mac1' => mhosts} }
+      clusters = get_clusters($config)
+      cluster.each do |cluster|
+        hosts = provider.find_least_used_host(cluster, dcname)
+        $target_hosts['cluster'][cluster] = hosts
+      end
       $target_hosts['cluster'].each do |cluster_name, hosts|
         $logger.log('d', "#{cluster_name} has targets #{hosts}")
       end
