@@ -769,7 +769,7 @@ module Vmpooler
       provider = $providers['host_selector']
       raise("Missing Provider for host_selector") if provider.nil?
       clusters = get_clusters($config)
-      cluster.each do |cluster|
+      clusters.each do |cluster|
         hosts = provider.find_least_used_host(cluster, dcname)
         $target_hosts['cluster'][cluster] = hosts
       end
