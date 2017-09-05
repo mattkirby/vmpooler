@@ -145,7 +145,7 @@ module Vmpooler
             )
 
             # Choose a cluster/host to place the new VM on
-            cluster_object = find_cluster(cluster, target_cluster_name, target_datacenter_name)
+            cluster_object = find_cluster(target_cluster_name, connection, target_datacenter_name)
             #target_host_object = get_host_object(connection, target_cluster_name, $target_hosts)
 
             # Put the VM in the specified folder and resource pool
