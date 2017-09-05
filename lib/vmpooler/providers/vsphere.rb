@@ -145,12 +145,14 @@ module Vmpooler
             )
 
             # Choose a cluster/host to place the new VM on
-            target_host_object = get_host_object(connection, target_cluster_name, $target_hosts)
+            cluster_object = find_cluster(cluster, target_cluster_name, target_datacenter_name)
+            #target_host_object = get_host_object(connection, target_cluster_name, $target_hosts)
 
             # Put the VM in the specified folder and resource pool
             relocate_spec = RbVmomi::VIM.VirtualMachineRelocateSpec(
-              datastore: find_datastore(target_datastore, connection, target_datacenter_name),
-              host: target_host_object,
+              datastore: find_datastorresourcePool
+              resource_pool: = cluster.resourcePool,
+              #host: target_host_object,
               diskMoveType: :moveChildMostDiskBacking
             )
 
@@ -513,7 +515,7 @@ module Vmpooler
         #    the host is in maintenance mode
         #    the host status is not 'green'
         #    the cpu or memory utilization is bigger than the limit param
-        def get_host_utilization(host, model = nil, limit = 90)
+        def get_host_utilization(host, model = nil, limit = 80)
           if model
             return nil unless host_has_cpu_model?(host, model)
           end
@@ -524,10 +526,13 @@ module Vmpooler
           cpu_utilization = cpu_utilization_for host
           memory_utilization = memory_utilization_for host
 
+          # Check if quickstats are returning
+          return nil if cpu_utilization == 0
+          return nil if memory_utilization == 0
           return nil if cpu_utilization > limit
           return nil if memory_utilization > limit
 
-          [cpu_utilization + memory_utilization, host]
+          [cpu_utilization, host]
         end
 
         def host_has_cpu_model?(host, model)
@@ -606,6 +611,8 @@ module Vmpooler
         end
 
         def get_host_object(connection, cluster, host_object = $target_hosts)
+          raise('Host selector has not completed checking for target hosts') if host_object.has_key?('check_time_start')
+          raise('Host selector results are older than 2 minutes. Host selection is failing to update.') if Time.now - host_object['check_time_finished'] > 120
           host = host_object['cluster'][cluster]['hosts'][0]
           host_object['cluster'][cluster]['hosts'].delete(host)
           host_object['cluster'][cluster]['hosts'] << host

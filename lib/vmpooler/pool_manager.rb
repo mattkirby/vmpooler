@@ -765,6 +765,7 @@ module Vmpooler
     def _select_hosts(dcname = 'opdx2', target = $target_hosts)
       raise('Already running _select_hosts') unless $target_hosts['checking'].nil?
       $target_hosts['checking'] = true
+      $target_hosts['check_time_start'] = Time.now
       $target_hosts['cluster'] = {} unless $target_hosts.key?('cluster')
       provider = $providers['host_selector']
       raise("Missing Provider for host_selector") if provider.nil?
@@ -777,6 +778,7 @@ module Vmpooler
         $logger.log('d', "#{cluster_name} has targets #{hosts}")
       end
       $target_hosts.delete('checking')
+      $target_hosts['check_time_finished'] = Time.now
     rescue => e
       $logger.log('s', "[+] [host_selector] Failed to get hosts: #{e}")
       $target_hosts.delete('checking')
@@ -873,11 +875,13 @@ module Vmpooler
           check_snapshot_queue
         end
 
-        if ! $threads['host_selector']
-          select_hosts
-        elsif ! $threads['host_selector'].alive?
-          $logger.log('d', "[!] [host_selector] worker thread died, restarting")
-          select_hosts
+        if $config[:config]['migration_limit']
+          if ! $threads['host_selector']
+            select_hosts
+          elsif ! $threads['host_selector'].alive?
+            $logger.log('d', "[!] [host_selector] worker thread died, restarting")
+            select_hosts
+          end
         end
 
         $config[:pools].each do |pool|
