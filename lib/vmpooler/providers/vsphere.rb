@@ -150,7 +150,7 @@ module Vmpooler
 
             # Put the VM in the specified folder and resource pool
             relocate_spec = RbVmomi::VIM.VirtualMachineRelocateSpec(
-              datastore: find_datastore,
+              datastore: find_datastore(target_datastore, connection, target_datacenter_name),
               pool: cluster_object.resourcePool,
               #host: target_host_object,
               diskMoveType: :moveChildMostDiskBacking
