@@ -617,7 +617,7 @@ module Vmpooler
         end
 
         def get_host_object_by_arch(connection, cluster, arch, hosts_hash)
-          raise('Host selector has not completed checking for target hosts') if hosts_hash.has_key?('check_time_start')
+          raise('Host selector has not completed checking for target hosts') unless hosts_hash.has_key?('check_time_finished')
           raise('Host selector results are older than 2 minutes. Host selection is failing to update.') if Time.now - hosts_hash['check_time_finished'] > 120
           host = hosts_hash['cluster'][cluster]['architectures'][arch][0]
           hosts_hash['cluster'][cluster]['architectures'][arch].delete(host)
