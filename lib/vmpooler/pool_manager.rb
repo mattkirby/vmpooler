@@ -521,7 +521,7 @@ module Vmpooler
         if target_host_name == parent_host_name
           $logger.log('s', "[ ] [#{pool_name}] No migration required for '#{vm_name}' running on #{parent_host_name}")
         else
-          finish = migrate_vm_and_record_timing(vm_name, pool_name, parent_host_name, target_host_name, target_host_object, provider)
+          finish = migrate_vm_and_record_timing(vm_object, pool_name, parent_host_name, target_host_name, target_host_object, provider)
           $logger.log('s', "[>] [#{pool_name}] '#{vm_name}' migrated from #{parent_host_name} to #{host_name} in #{finish} seconds")
         end
         remove_vmpooler_migration_vm(pool_name, vm_name)
