@@ -648,7 +648,7 @@ module Vmpooler
           source_host = vm.summary.runtime.host
           model = get_host_cpu_arch_version(source_host)
           cluster = source_host.parent
-          target_host_object = get_host_object_by_arch(connection, cluster.name, model, $target_hosts)
+          target_host_object = get_host_object_by_arch(connection, cluster.name, model)
           raise("There is no host candidate in vcenter that meets all the required conditions, check that the cluster has available hosts in a 'green' status, not in maintenance mode and not overloaded CPU and memory'") if target_host_object.nil?
           [target_host_object, target_host_object.name]
         end
