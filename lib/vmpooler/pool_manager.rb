@@ -857,15 +857,6 @@ module Vmpooler
           check_snapshot_queue
         end
 
-        if $config[:config]['migration_limit']
-          if ! $threads['host_selector']
-            select_hosts
-          elsif ! $threads['host_selector'].alive?
-            $logger.log('d', "[!] [host_selector] worker thread died, restarting")
-            select_hosts
-          end
-        end
-
         $config[:pools].each do |pool|
           if !$threads[pool['name']]
             check_pool(pool)
