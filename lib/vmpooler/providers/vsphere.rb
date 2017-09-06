@@ -616,10 +616,10 @@ module Vmpooler
           find_host_by_dnsname(connection, host)
         end
 
-        def get_host_object_by_arch(connection, cluster, arch, host_object = $target_hosts)
-          host = host_object['cluster'][cluster]['architectures'][arch][0]
-          host_object['cluster'][cluster]['architectures'][arch].delete(host)
-          host_object['cluster'][cluster]['architectures'][arch] << host
+        def get_host_object_by_arch(connection, cluster, arch)
+          host = $target_hosts['cluster'][cluster]['architectures'][arch][0]
+          $target_hosts['cluster'][cluster]['architectures'][arch].delete(host)
+          $target_hosts['cluster'][cluster]['architectures'][arch] << host
           find_host_by_dnsname(connection, host)
         end
 
