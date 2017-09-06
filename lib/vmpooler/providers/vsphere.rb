@@ -73,7 +73,6 @@ module Vmpooler
           @connection_pool.with_metrics do |pool_object|
             connection = ensured_vsphere_connection(pool_object)
 
-            target_host_object = find_least_used_host(target_cluster_name, $target_hosts)
             return hostname if vm_object.nil?
             host_object, hostname = find_least_used_vsphere_compatible_host(connection, vm_object)
 
@@ -146,13 +145,11 @@ module Vmpooler
 
             # Choose a cluster/host to place the new VM on
             cluster_object = find_cluster(target_cluster_name, connection, target_datacenter_name)
-            #target_host_object = get_host_object(connection, target_cluster_name, $target_hosts)
 
             # Put the VM in the specified folder and resource pool
             relocate_spec = RbVmomi::VIM.VirtualMachineRelocateSpec(
               datastore: find_datastore(target_datastore, connection, target_datacenter_name),
               pool: cluster_object.resourcePool,
-              #host: target_host_object,
               diskMoveType: :moveChildMostDiskBacking
             )
 

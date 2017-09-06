@@ -497,6 +497,7 @@ module Vmpooler
         return
       else
         $redis.sadd('vmpooler__migration', vm_name)
+        select_hosts(provider) if $target_hosts.has_key?('checking') == false && Time.now - $target_hosts['check_time_finished'] > 60
         target_host_object, target_host_name = provider.find_least_used_compatible_host(pool_name, vm_object)
         if target_host_name == parent_host_name
           $logger.log('s', "[ ] [#{pool_name}] No migration required for '#{vm_name}' running on #{parent_host_name}")
@@ -735,24 +736,6 @@ module Vmpooler
       raise
     end
 
-    def select_hosts(maxloop = 0, loop_delay = 5)
-      $logger.log('d', "[*] [host_selector] starting worker thread")
-      $providers['host_selector'] = create_provider_object($config, $logger, $metrics, 'vsphere', 'vsphere', {}) if $providers['host_selector'].nil?
-
-      $threads['host_selector'] = Thread.new do
-        loop_count = 1
-        loop do
-          _select_hosts
-          sleep(loop_delay)
-
-          unless maxloop.zero?
-            break if loop_count >= maxloop
-            loop_count += 1
-          end
-        end
-      end
-    end
-
     def get_clusters(config)
       clusters = []
       clusters << $config[:config]['clone_target']
@@ -762,13 +745,12 @@ module Vmpooler
       clusters.uniq
     end
 
-    def _select_hosts(dcname = 'opdx2', target = $target_hosts)
-      raise('Already running _select_hosts') unless $target_hosts['checking'].nil?
+    def select_hosts(provider, dcname = 'opdx2', target = $target_hosts)
+      raise("Missing Provider for host_selector") if provider.nil?
+      raise('Already running select_hosts') unless $target_hosts['checking'].nil?
       $target_hosts['checking'] = true
       $target_hosts['check_time_start'] = Time.now
       $target_hosts['cluster'] = {} unless $target_hosts.key?('cluster')
-      provider = $providers['host_selector']
-      raise("Missing Provider for host_selector") if provider.nil?
       clusters = get_clusters($config)
       clusters.each do |cluster|
         hosts = provider.find_least_used_host(cluster, dcname)
