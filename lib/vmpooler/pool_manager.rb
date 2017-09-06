@@ -480,6 +480,23 @@ module Vmpooler
       end
     end
 
+    def select_hosts(provider)
+        select_hosts(provider) if $target_hosts.has_key?('checking') == false && Time.now - $target_hosts['check_time_finished'] > 60
+        wait_for_host_selection
+        select_hosts(provider) unless $target_hosts['checking'] == true && Time.now - $target_hosts['check_time_started'] < 60
+    end
+
+    def wait_for_host_selection(maxloop = 0, loop_delay = 5, max_age = 120)
+      while $target_hosts.has_key?('check_time_finished') == false
+        sleep(loop_delay)
+        unless maxloop.zero?
+          break if loop_count >= maxloop
+          loop_count += 1
+        end
+      end
+      raise("Refusing to use host selection for migration because the time since host selection has last completed is greater than #{max_age}") if Time.now - $target_hosts['check_time_finished'] > max_age
+    end
+
     def _migrate_vm(vm_name, pool_name, provider)
       $redis.srem('vmpooler__migrating__' + pool_name, vm_name)
 
@@ -497,7 +514,7 @@ module Vmpooler
         return
       else
         $redis.sadd('vmpooler__migration', vm_name)
-        select_hosts(provider) if $target_hosts.has_key?('checking') == false && Time.now - $target_hosts['check_time_finished'] > 60
+        select_hosts(provider)
         target_host_object, target_host_name = provider.find_least_used_compatible_host(pool_name, vm_object)
         if target_host_name == parent_host_name
           $logger.log('s', "[ ] [#{pool_name}] No migration required for '#{vm_name}' running on #{parent_host_name}")
