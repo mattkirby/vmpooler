@@ -517,7 +517,8 @@ module Vmpooler
       else
         $redis.sadd('vmpooler__migration', vm_name)
         run_select_hosts(provider)
-        target_host_object, target_host_name = provider.find_least_used_compatible_host(pool_name, vm_object)
+        target_host_object, target_host_name = provider.find_least_used_compatible_host(pool_name, vm_object, $target_hosts)
+        logger.log('s', "[ ] [#{pool_name}] '#{target_host_name}' and #{target_host_object} selected")
         if target_host_name == parent_host_name
           $logger.log('s', "[ ] [#{pool_name}] No migration required for '#{vm_name}' running on #{parent_host_name}")
         else

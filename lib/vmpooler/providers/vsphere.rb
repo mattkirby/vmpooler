@@ -68,13 +68,13 @@ module Vmpooler
           vm_object
         end
 
-        def find_least_used_compatible_host(_pool_name, vm_object)
+        def find_least_used_compatible_host(_pool_name, vm_object, hosts_hash)
           hostname = nil
           @connection_pool.with_metrics do |pool_object|
             connection = ensured_vsphere_connection(pool_object)
 
             return hostname if vm_object.nil?
-            host_object, hostname = find_least_used_vsphere_compatible_host(connection, vm_object)
+            host_object, hostname = find_least_used_vsphere_compatible_host(connection, vm_object, hosts_hash)
 
             return hostname if host_object.nil?
           end
@@ -616,10 +616,12 @@ module Vmpooler
           find_host_by_dnsname(connection, host)
         end
 
-        def get_host_object_by_arch(connection, cluster, arch)
-          host = $target_hosts['cluster'][cluster]['architectures'][arch][0]
-          $target_hosts['cluster'][cluster]['architectures'][arch].delete(host)
-          $target_hosts['cluster'][cluster]['architectures'][arch] << host
+        def get_host_object_by_arch(connection, cluster, arch, hosts_hash)
+          raise('Host selector has not completed checking for target hosts') if hosts_hash.has_key?('check_time_start')
+          raise('Host selector results are older than 2 minutes. Host selection is failing to update.') if Time.now - hosts_hash['check_time_finished'] > 120
+          host = hosts_hash['cluster'][cluster]['architectures'][arch][0]
+          hosts_hash['cluster'][cluster]['architectures'][arch].delete(host)
+          hosts_hash['cluster'][cluster]['architectures'][arch] << host
           find_host_by_dnsname(connection, host)
         end
 
@@ -644,11 +646,11 @@ module Vmpooler
           cluster_hosts
         end
 
-        def find_least_used_vsphere_compatible_host(connection, vm)
+        def find_least_used_vsphere_compatible_host(connection, vm, hosts_hash)
           source_host = vm.summary.runtime.host
           model = get_host_cpu_arch_version(source_host)
           cluster = source_host.parent
-          target_host_object = get_host_object_by_arch(connection, cluster.name, model)
+          target_host_object = get_host_object_by_arch(connection, cluster.name, model, hosts_hash)
           raise("There is no host candidate in vcenter that meets all the required conditions, check that the cluster has available hosts in a 'green' status, not in maintenance mode and not overloaded CPU and memory'") if target_host_object.nil?
           [target_host_object, target_host_object.name]
         end
