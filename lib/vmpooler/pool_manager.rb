@@ -483,7 +483,7 @@ module Vmpooler
     def select_hosts(provider)
         select_hosts(provider) if $target_hosts.has_key?('checking') == false && Time.now - $target_hosts['check_time_finished'] > 60
         wait_for_host_selection
-        select_hosts(provider) unless $target_hosts['checking'] == true && Time.now - $target_hosts['check_time_started'] < 60
+        select_hosts(provider) unless $target_hosts['checking'] == true && Time.now - $target_hosts['check_time_started'] > 60
     end
 
     def wait_for_host_selection(maxloop = 0, loop_delay = 5, max_age = 120)

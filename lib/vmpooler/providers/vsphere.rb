@@ -617,9 +617,9 @@ module Vmpooler
         end
 
         def get_host_object_by_arch(connection, cluster, arch, host_object = $target_hosts)
-          host = host_object['cluster'][cluster]['architectures'][0]
-          host_object['cluster'][cluster]['architectures'].delete(host)
-          host_object['cluster'][cluster]['architectures'] << host
+          host = host_object['cluster'][cluster]['architectures'][arch][0]
+          host_object['cluster'][cluster]['architectures'][arch].delete(host)
+          host_object['cluster'][cluster]['architectures'][arch] << host
           find_host_by_dnsname(connection, host)
         end
 
