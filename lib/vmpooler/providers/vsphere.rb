@@ -639,6 +639,7 @@ module Vmpooler
             connection = ensured_vsphere_connection(pool_object)
             host_object = connection.searchIndex.FindByDnsName(dnsName: dnsname, vmSearch: false)
             return nil if host_object.nil?
+          end
           host_object
         end
 
