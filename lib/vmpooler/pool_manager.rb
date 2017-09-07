@@ -504,6 +504,7 @@ module Vmpooler
 
       vm_object = provider.get_vm_object(pool_name, vm_name)
       parent_host_name = vm_object.summary.runtime.host.name if vm_object.summary && vm_object.summary.runtime && vm_object.summary.runtime.host
+      cluster_name = vm_object.summary.runtime.host.parent.name
       raise('Unable to determine which host the VM is running on') if parent_host_name.nil?
       migration_limit = migration_limit $config[:config]['migration_limit']
       migration_count = $redis.scard('vmpooler__migration')
@@ -519,16 +520,29 @@ module Vmpooler
         $logger.log('d', "going to run select_hosts")
         run_select_hosts(provider)
         $logger.log('d', "going to run find_least_used_compatible_host")
-        target_host_object, target_host_name = provider.find_least_used_compatible_host(pool_name, vm_object, $target_hosts)
-        $logger.log('s', "[ ] [#{pool_name}] '#{target_host_name}' and #{target_host_object} selected")
+        target_host_name = select_next_host(cluster_name, provider.get_host_cpu_arch_version(vm_object.summary.runtime.host))
+        $logger.log('s', "[ ] [#{pool_name}] '#{target_host_name}' selected")
         if target_host_name == parent_host_name
           $logger.log('s', "[ ] [#{pool_name}] No migration required for '#{vm_name}' running on #{parent_host_name}")
         else
+          $logger.log('s', "[ ] [#{pool_name}] Getting host object")
+          target_host_object = provider.find_host_by_dnsname(provider, target_host_name)
+          $logger.log('s', "[ ] [#{pool_name}] Attempting migration")
           finish = migrate_vm_and_record_timing(vm_object, pool_name, parent_host_name, target_host_name, target_host_object, provider)
           $logger.log('s', "[>] [#{pool_name}] '#{vm_name}' migrated from #{parent_host_name} to #{host_name} in #{finish} seconds")
         end
         remove_vmpooler_migration_vm(pool_name, vm_name)
       end
+    end
+
+    def select_next_host(cluster_name, architecture)
+      raise('Host selector has not completed checking for target hosts') unless hosts_hash.has_key?('check_time_finished')
+      raise('Host selector results are older than 2 minutes. Host selection is failing to update.') if Time.now - hosts_hash['check_time_finished'] > 120
+      host = $target_hosts['cluster'][cluster]['architectures'][architecture][0]
+      return if host.nil?
+      $target_hosts['cluster'][cluster]['architectures'][architecture].delete(host)
+      $target_hosts['cluster'][cluster]['architectures'][architecture] << host
+      host
     end
 
     def remove_vmpooler_migration_vm(pool, vm)
