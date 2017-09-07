@@ -488,7 +488,7 @@ module Vmpooler
       end
     end
 
-    def wait_for_host_selection(maxloop = 0, loop_delay = 5, max_age = 60)
+    def wait_for_host_selection(pool_name, maxloop = 0, loop_delay = 5, max_age = 60)
       while $target_hosts.has_key?('check_time_finished') == false
         sleep(loop_delay)
         unless maxloop.zero?
