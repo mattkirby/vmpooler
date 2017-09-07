@@ -480,9 +480,9 @@ module Vmpooler
       end
     end
 
-    def run_select_hosts(provider)
+    def run_select_hosts(provider, pool_name)
       if $target_hosts.has_key?('checking')
-        wait_for_host_selection
+        wait_for_host_selection(pool_name)
       else
         select_hosts(provider)
       end
@@ -526,7 +526,7 @@ module Vmpooler
       else
         $redis.sadd('vmpooler__migration', vm_name)
         $logger.log('d', "going to run select_hosts")
-        run_select_hosts(provider)
+        run_select_hosts(provider, pool_name)
         $logger.log('d', "going to run find_least_used_compatible_host")
         target_host_name = select_next_host(cluster_name, provider.get_host_cpu_arch_version(vm_object.summary.runtime.host))
         $logger.log('s', "[ ] [#{pool_name}] '#{target_host_name}' selected")
