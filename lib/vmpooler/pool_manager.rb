@@ -805,7 +805,7 @@ module Vmpooler
       hosts_hash['cluster'].each do |cluster_name, hosts|
         $logger.log('d', "#{cluster_name} has targets #{hosts}")
       end
-      $target_hosts['cluster'] = hosts_has['cluster']
+      $target_hosts['cluster'] = hosts_hash['cluster']
       $target_hosts.delete('checking')
       $target_hosts['check_time_finished'] = Time.now
     rescue => e
