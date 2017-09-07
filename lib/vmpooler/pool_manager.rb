@@ -538,10 +538,10 @@ module Vmpooler
     def select_next_host(cluster_name, architecture)
       raise('Host selector has not completed checking for target hosts') unless $target_hosts.has_key?('check_time_finished')
       raise('Host selector results are older than 2 minutes. Host selection is failing to update.') if Time.now - $target_hosts['check_time_finished'] > 120
-      host = $target_hosts['cluster'][cluster]['architectures'][architecture][0]
+      host = $target_hosts['cluster'][cluster_name]['architectures'][architecture][0]
       return if host.nil?
-      $target_hosts['cluster'][cluster]['architectures'][architecture].delete(host)
-      $target_hosts['cluster'][cluster]['architectures'][architecture] << host
+      $target_hosts['cluster'][cluster_name]['architectures'][architecture].delete(host)
+      $target_hosts['cluster'][cluster_name]['architectures'][architecture] << host
       host
     end
 
