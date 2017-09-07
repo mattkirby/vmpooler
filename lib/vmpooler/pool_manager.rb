@@ -526,7 +526,7 @@ module Vmpooler
           $logger.log('s', "[ ] [#{pool_name}] No migration required for '#{vm_name}' running on #{parent_host_name}")
         else
           $logger.log('s', "[ ] [#{pool_name}] Getting host object")
-          target_host_object = provider.find_host_by_dnsname(provider, target_host_name)
+          target_host_object = provider.find_host_by_dnsname(pool_name, target_host_name)
           $logger.log('s', "[ ] [#{pool_name}] Attempting migration")
           finish = migrate_vm_and_record_timing(vm_object, pool_name, parent_host_name, target_host_name, target_host_object, provider)
           $logger.log('s', "[>] [#{pool_name}] '#{vm_name}' migrated from #{parent_host_name} to #{host_name} in #{finish} seconds")
@@ -553,6 +553,7 @@ module Vmpooler
 
     def migrate_vm_and_record_timing(vm_object, pool_name, source_host_name, dest_host_name, dest_host_object, provider)
       start = Time.now
+      vm_name = vm_object.name
       provider.migrate_vm_host(vm_object, dest_host_object)
       finish = format('%.2f', Time.now - start)
       $metrics.timing("migrate.#{pool_name}", finish)
