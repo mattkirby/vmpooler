@@ -792,18 +792,20 @@ module Vmpooler
 
     def select_hosts(provider, dcname = 'opdx2', target = $target_hosts)
       raise("Missing Provider for host_selector") if provider.nil?
-      raise('Already running select_hosts') unless $target_hosts['checking'].nil?
+      raise('Already running select_hosts') if $target_hosts.key?('checking')
       $target_hosts['checking'] = true
       $target_hosts['check_time_start'] = Time.now
-      $target_hosts['cluster'] = {} unless $target_hosts.key?('cluster')
+      hosts_hash = {}
+      hosts_hash['cluster'] = {}
       clusters = get_clusters($config)
       clusters.each do |cluster|
         hosts = provider.find_least_used_host(cluster, dcname)
-        $target_hosts['cluster'][cluster] = hosts
+        hosts_hash['cluster'][cluster] = hosts
       end
-      $target_hosts['cluster'].each do |cluster_name, hosts|
+      hosts_hash['cluster'].each do |cluster_name, hosts|
         $logger.log('d', "#{cluster_name} has targets #{hosts}")
       end
+      $target_hosts['cluster'] = hosts_has['cluster']
       $target_hosts.delete('checking')
       $target_hosts['check_time_finished'] = Time.now
     rescue => e
