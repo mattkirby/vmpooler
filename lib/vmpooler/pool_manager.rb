@@ -530,12 +530,11 @@ module Vmpooler
       if migration_count >= migration_limit
         $logger.log('s', "[ ] [#{pool_name}] '#{vm_name}' is running on #{parent_host_name}. No migration will be evaluated since the migration_limit has been reached")
         return
-      elsif $target_hosts['cluster'][cluster_name].include? parent_host_name
+      elsif $target_hosts['cluster'][cluster_name]['hosts'].include? parent_host_name
         $logger.log('s', "[ ] [#{pool_name}] No migration required for '#{vm_name}' running on #{parent_host_name}")
       else
         $redis.sadd('vmpooler__migration', vm_name)
         #$logger.log('d', "going to run select_hosts")
-        run_select_hosts(provider, pool_name)
         #$logger.log('d', "going to run find_least_used_compatible_host")
         target_host_name = select_next_host(cluster_name, provider.get_host_cpu_arch_version(vm_object.summary.runtime.host))
         #$logger.log('s', "[ ] [#{pool_name}] '#{target_host_name}' selected")
