@@ -481,10 +481,13 @@ module Vmpooler
     end
 
     def run_select_hosts(provider, pool_name, max_age = 60)
+      now = Time.now
       if $target_hosts.key?('checking')
         wait_for_host_selection(pool_name)
+      elsif $target_hosts.key?('check_time_finished')
+        select_hosts(provider) if now - $target_hosts['check_time_finished'] > max_age
       else
-        select_hosts(provider) if Time.now - $target_hosts['check_time_finished'] > max_age
+        select_hosts(provider)
       end
     end
 
@@ -496,7 +499,8 @@ module Vmpooler
           loop_count += 1
         end
       end
-      while Time.now - $target_hosts['check_time_finished'] > max_age
+      now = Time.now
+      while now - $target_hosts['check_time_finished'] > max_age
         $logger.log('s', "[ ] [#{pool_name}] Host selection results are greater than #{max_age} seconds old. Waiting for results to update.")
         sleep(loop_delay)
         unless maxloop.zero?
@@ -504,7 +508,7 @@ module Vmpooler
           loop_count += 1
         end
       end
-      raise("Refusing to use host selection for migration because the time since host selection has last completed is greater than #{max_age} seconds") if Time.now - $target_hosts['check_time_finished'] > max_age
+      raise("Refusing to use host selection for migration because the time since host selection has last completed is greater than #{max_age} seconds") if now - $target_hosts['check_time_finished'] > max_age
     end
 
     def _migrate_vm(vm_name, pool_name, provider)
