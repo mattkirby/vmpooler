@@ -602,7 +602,16 @@ module Vmpooler
 
             architectures = build_compatible_hosts_lists(target_hosts)
             least_used_hosts = select_least_used_hosts(target_hosts)
-            least_used_hosts_list = { 'hosts' => least_used_hosts, 'architectures' => architectures }
+            all_hosts = []
+            all_hosts = all_hosts + least_used_hosts
+            architectures.keys.each do |arch|
+              all_hosts = all_hosts + architectures[arch]
+            end
+            least_used_hosts_list = {
+              'hosts' => least_used_hosts,
+              'architectures' => architectures,
+              'all_hosts' => all_hosts.uniq
+            }
             least_used_hosts_list
           end
         end
