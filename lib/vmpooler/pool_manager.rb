@@ -482,11 +482,7 @@ module Vmpooler
 
     def run_select_hosts(provider, pool_name, max_age = 60)
       if $target_hosts.key?('checking')
-        if $target_hosts.key?('check_time_finished')
-          return if Time.now - $target_hosts['check_time_finished'] < max_age
-          wait_for_host_selection(pool_name)
-        else
-          wait_for_host_selection(pool_name)
+        wait_for_host_selection(pool_name)
       else
         select_hosts(provider) if Time.now - $target_hosts['check_time_finished'] > max_age
       end
