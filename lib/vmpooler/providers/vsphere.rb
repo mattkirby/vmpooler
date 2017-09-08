@@ -782,8 +782,8 @@ module Vmpooler
           snapshot
         end
 
-        def migrate_vm_host(vm_object, host_object)
-          relospec = RbVmomi::VIM.VirtualMachineRelocateSpec(host: host_object)
+        def migrate_vm_host(vm_object, cluster_object)
+          relospec = RbVmomi::VIM.VirtualMachineRelocateSpec(pool: cluster_object.resourcePool)
           vm_object.RelocateVM_Task(spec: relospec).wait_for_completion
         end
       end
