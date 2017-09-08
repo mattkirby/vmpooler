@@ -545,6 +545,7 @@ module Vmpooler
         target_host_object = provider.find_host_by_dnsname(pool_name, target_host_name)
         $logger.log('s', "[ ] [#{pool_name}] Attempting migration")
         finish = migrate_vm_and_record_timing(vm_object, pool_name, parent_host_name, target_host_name, target_host_object, provider)
+        finish = migrate_vm_and_record_timing(vm_object, pool_name, parent_host_name, target_host_name, target_host_object, provider
         $logger.log('s', "[>] [#{pool_name}] '#{vm_name}' migrated from #{parent_host_name} to #{target_host_name} in #{finish} seconds")
         remove_vmpooler_migration_vm(pool_name, vm_name)
       end
@@ -566,12 +567,10 @@ module Vmpooler
       $logger.log('s', "[x] [#{pool}] '#{vm}' removal from vmpooler__migration failed with an error: #{err}")
     end
 
-    def migrate_vm_and_record_timing(vm_object, pool_name, source_host_name, provider)
+    def migrate_vm_and_record_timing(vm_object, pool_name, source_host_name, dest_host_name, dest_host_object, provider)
       start = Time.now
       vm_name = vm_object.name
-      cluster_object = vm_object.summary.runtime.host.parent
-      provider.migrate_vm_host(vm_object, cluster_object)
-      dest_host_name = vm_object.summary.runtime.host.name
+      provider.migrate_vm_host(vm_object, dest_host_object)
       finish = format('%.2f', Time.now - start)
       $metrics.timing("migrate.#{pool_name}", finish)
       $metrics.increment("migrate_from.#{source_host_name}")
@@ -579,7 +578,7 @@ module Vmpooler
       checkout_to_migration = format('%.2f', Time.now - Time.parse($redis.hget("vmpooler__vm__#{vm_name}", 'checkout')))
       $redis.hset("vmpooler__vm__#{vm_name}", 'migration_time', finish)
       $redis.hset("vmpooler__vm__#{vm_name}", 'checkout_to_migration', checkout_to_migration)
-      [finish, dest_host_name]
+      finish
     end
 
     def check_pool(pool,
