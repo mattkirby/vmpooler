@@ -527,22 +527,23 @@ module Vmpooler
       elsif migration_count >= migration_limit
         $logger.log('s', "[ ] [#{pool_name}] '#{vm_name}' is running on #{parent_host_name}. No migration will be evaluated since the migration_limit has been reached")
         return
+      elsif $target_hosts['cluster'][cluster_name].include? parent_host_name
+        $logger.log('s', "[ ] [#{pool_name}] No migration required for '#{vm_name}' running on #{parent_host_name}")
       else
         $redis.sadd('vmpooler__migration', vm_name)
-        $logger.log('d', "going to run select_hosts")
-        run_select_hosts(provider, pool_name)
-        $logger.log('d', "going to run find_least_used_compatible_host")
-        target_host_name = select_next_host(cluster_name, provider.get_host_cpu_arch_version(vm_object.summary.runtime.host))
-        $logger.log('s', "[ ] [#{pool_name}] '#{target_host_name}' selected")
-        if target_host_name == parent_host_name
-          $logger.log('s', "[ ] [#{pool_name}] No migration required for '#{vm_name}' running on #{parent_host_name}")
-        else
-          $logger.log('s', "[ ] [#{pool_name}] Getting host object")
-          target_host_object = provider.find_host_by_dnsname(pool_name, target_host_name)
-          $logger.log('s', "[ ] [#{pool_name}] Attempting migration")
-          finish = migrate_vm_and_record_timing(vm_object, pool_name, parent_host_name, target_host_name, target_host_object, provider)
-          $logger.log('s', "[>] [#{pool_name}] '#{vm_name}' migrated from #{parent_host_name} to #{target_host_name} in #{finish} seconds")
-        end
+        #$logger.log('d', "going to run select_hosts")
+        #run_select_hosts(provider, pool_name)
+        #$logger.log('d', "going to run find_least_used_compatible_host")
+        #target_host_name = select_next_host(cluster_name, provider.get_host_cpu_arch_version(vm_object.summary.runtime.host))
+        #$logger.log('s', "[ ] [#{pool_name}] '#{target_host_name}' selected")
+        #if target_host_name == parent_host_name
+        #  $logger.log('s', "[ ] [#{pool_name}] No migration required for '#{vm_name}' running on #{parent_host_name}")
+        #$logger.log('s', "[ ] [#{pool_name}] Getting host object")
+        #target_host_object = provider.find_host_by_dnsname(pool_name, target_host_name)
+        $logger.log('s', "[ ] [#{pool_name}] Attempting migration")
+        #finish = migrate_vm_and_record_timing(vm_object, pool_name, parent_host_name, target_host_name, target_host_object, provider)
+        finish, target_host_name = migrate_vm_and_record_timing(vm_object, pool_name, parent_host_name, provider)
+        $logger.log('s', "[>] [#{pool_name}] '#{vm_name}' migrated from #{parent_host_name} to #{target_host_name} in #{finish} seconds")
         remove_vmpooler_migration_vm(pool_name, vm_name)
       end
     end
@@ -563,10 +564,12 @@ module Vmpooler
       $logger.log('s', "[x] [#{pool}] '#{vm}' removal from vmpooler__migration failed with an error: #{err}")
     end
 
-    def migrate_vm_and_record_timing(vm_object, pool_name, source_host_name, dest_host_name, dest_host_object, provider)
+    def migrate_vm_and_record_timing(vm_object, pool_name, source_host_name, provider)
       start = Time.now
       vm_name = vm_object.name
-      provider.migrate_vm_host(vm_object, dest_host_object)
+      cluster_object = vm_object.summary.runtime.host.parent
+      provider.migrate_vm_host(vm_object, cluster_object)
+      dest_host_name = vm_object.summary.runtime.host.name
       finish = format('%.2f', Time.now - start)
       $metrics.timing("migrate.#{pool_name}", finish)
       $metrics.increment("migrate_from.#{source_host_name}")
@@ -574,7 +577,7 @@ module Vmpooler
       checkout_to_migration = format('%.2f', Time.now - Time.parse($redis.hget("vmpooler__vm__#{vm_name}", 'checkout')))
       $redis.hset("vmpooler__vm__#{vm_name}", 'migration_time', finish)
       $redis.hset("vmpooler__vm__#{vm_name}", 'checkout_to_migration', checkout_to_migration)
-      finish
+      [finish, dest_host_name]
     end
 
     def check_pool(pool,
