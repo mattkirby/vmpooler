@@ -540,7 +540,7 @@ module Vmpooler
         #target_host_object = provider.find_host_by_dnsname(pool_name, target_host_name)
         $logger.log('s', "[ ] [#{pool_name}] Attempting migration")
         #finish = migrate_vm_and_record_timing(vm_object, pool_name, parent_host_name, target_host_name, target_host_object, provider)
-        finish, target_host_name = migrate_vm_and_record_timing(vm_object, pool_name, parent_host_name, provider)
+        finish = 
         $logger.log('s', "[>] [#{pool_name}] '#{vm_name}' migrated from #{parent_host_name} to #{target_host_name} in #{finish} seconds")
         remove_vmpooler_migration_vm(pool_name, vm_name)
       end
@@ -575,7 +575,7 @@ module Vmpooler
       checkout_to_migration = format('%.2f', Time.now - Time.parse($redis.hget("vmpooler__vm__#{vm_name}", 'checkout')))
       $redis.hset("vmpooler__vm__#{vm_name}", 'migration_time', finish)
       $redis.hset("vmpooler__vm__#{vm_name}", 'checkout_to_migration', checkout_to_migration)
-      [finish, dest_host_name]
+      finish
     end
 
     def check_pool(pool,
