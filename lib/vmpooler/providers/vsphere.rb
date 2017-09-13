@@ -616,6 +616,16 @@ module Vmpooler
           end
         end
 
+        def select_target_hosts(clusters, default_dc = 'opdx2')
+          hosts_hash = { 'cluster' => {} }
+          clusters.each do |cluster|
+            hosts = find_least_used_host(cluster, dcname)
+            hosts_hash['cluster'][cluster] = hosts
+          end
+          hosts_hash
+        end
+
+
         def get_host_object(connection, cluster, host_object = $target_hosts)
           raise('Host selector has not completed checking for target hosts') if host_object.has_key?('check_time_start')
           raise('Host selector results are older than 2 minutes. Host selection is failing to update.') if Time.now - host_object['check_time_finished'] > 120

@@ -480,6 +480,30 @@ module Vmpooler
       end
     end
 
+    def get_clusters(config)
+      clusters = []
+      clusters << $config[:config]['clone_target']
+      $config[:pools].each do |pool|
+        clusters << pool['clone_target'] if pool.key?('clone_target')
+      end
+      clusters.uniq
+    end
+
+    def select_hosts(provider)
+      raise('Missing Provider for host selection') if provider.nil?
+      raise('Already running select_hosts') if $target_hosts.key?('checking')
+      $target_hosts['checking'] = true
+      $target_hosts['check_time_start'] = Time.now
+      clusters = get_clusters($config)
+      hosts_hash = provider.select_target_hosts(clusters)
+      hosts_hash['cluster'].each do |cluster_name, hosts|
+        $logger.log('d', "#{cluster_name} has targets #{hosts}")
+      end
+      $target_hosts['cluster'] = hosts_hash['cluster']
+      $target_hosts.delete('checking')
+      $target_hosts['check_time_finished'] = Time.now
+    end
+
     def run_select_hosts(provider, pool_name, max_age = 60)
       now = Time.now
       if $target_hosts.key?('checking')
@@ -772,38 +796,6 @@ module Vmpooler
     rescue => err
       $logger.log('d', "[!] [#{pool['name']}] _check_pool failed with an error: #{err}")
       raise
-    end
-
-    def get_clusters(config)
-      clusters = []
-      clusters << $config[:config]['clone_target']
-      $config[:pools].each do |pool|
-        clusters << pool['clone_target'] if pool.key?('clone_target')
-      end
-      clusters.uniq
-    end
-
-    def select_hosts(provider, dcname = 'opdx2', target = $target_hosts)
-      raise("Missing Provider for host_selector") if provider.nil?
-      raise('Already running select_hosts') if $target_hosts.key?('checking')
-      $target_hosts['checking'] = true
-      $target_hosts['check_time_start'] = Time.now
-      hosts_hash = {}
-      hosts_hash['cluster'] = {}
-      clusters = get_clusters($config)
-      clusters.each do |cluster|
-        hosts = provider.find_least_used_host(cluster, dcname)
-        hosts_hash['cluster'][cluster] = hosts
-      end
-      hosts_hash['cluster'].each do |cluster_name, hosts|
-        $logger.log('d', "#{cluster_name} has targets #{hosts}")
-      end
-      $target_hosts['cluster'] = hosts_hash['cluster']
-      $target_hosts.delete('checking')
-      $target_hosts['check_time_finished'] = Time.now
-    rescue => e
-      $logger.log('s', "[+] [host_selector] Failed to get hosts: #{e}")
-      $target_hosts.delete('checking')
     end
 
     # create a provider object based on the providers/*.rb class that implements providers/base.rb
