@@ -499,16 +499,13 @@ module Vmpooler
           loop_count += 1
         end
       end
-      now = Time.now
-      while now - $target_hosts['check_time_finished'] > max_age
-        $logger.log('s', "[ ] [#{pool_name}] Host selection results are greater than #{max_age} seconds old. Waiting for results to update.")
+      while Time.now - $target_hosts['check_time_finished'] > max_age
         sleep(loop_delay)
         unless maxloop.zero?
           break if loop_count >= maxloop
           loop_count += 1
         end
       end
-      raise("Refusing to use host selection for migration because the time since host selection has last completed is greater than #{max_age} seconds") if now - $target_hosts['check_time_finished'] > max_age
     end
 
     def _migrate_vm(vm_name, pool_name, provider)
@@ -534,8 +531,7 @@ module Vmpooler
       else
         $redis.sadd('vmpooler__migration', vm_name)
         target_host_name = select_next_host(cluster_name, provider.get_host_cpu_arch_version(vm_object.summary.runtime.host))
-        target_host_object = provider.find_host_by_dnsname(pool_name, target_host_name)
-        finish = migrate_vm_and_record_timing(vm_object, pool_name, parent_host_name, target_host_name, target_host_object, provider)
+        finish = migrate_vm_and_record_timing(vm_object, pool_name, parent_host_name, target_host_name, provider)
         $logger.log('s', "[>] [#{pool_name}] '#{vm_name}' migrated from #{parent_host_name} to #{target_host_name} in #{finish} seconds")
         remove_vmpooler_migration_vm(pool_name, vm_name)
       end
@@ -555,9 +551,10 @@ module Vmpooler
       $logger.log('s', "[x] [#{pool}] '#{vm}' removal from vmpooler__migration failed with an error: #{err}")
     end
 
-    def migrate_vm_and_record_timing(vm_object, pool_name, source_host_name, dest_host_name, dest_host_object, provider)
+    def migrate_vm_and_record_timing(vm_object, pool_name, source_host_name, dest_host_name, provider)
       start = Time.now
       vm_name = vm_object.name
+      dest_host_object = provider.find_host_by_dnsname(pool_name, dest_host_name)
       provider.migrate_vm_host(vm_object, dest_host_object)
       finish = format('%.2f', Time.now - start)
       $metrics.timing("migrate.#{pool_name}", finish)
