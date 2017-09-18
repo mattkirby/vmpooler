@@ -89,19 +89,28 @@ module Vmpooler
           end
         end
 
-        def find_least_used_compatible_host(_pool_name, vm_name)
-          hostname = nil
-          @connection_pool.with_metrics do |pool_object|
-            connection = ensured_vsphere_connection(pool_object)
-            vm_object = find_vm(vm_name, connection)
+#       def find_least_used_compatible_host(_pool_name, vm_name)
+#         hostname = nil
+#         @connection_pool.with_metrics do |pool_object|
+#           connection = ensured_vsphere_connection(pool_object)
+#           vm_object = find_vm(vm_name, connection)
+#
+#           return hostname if vm_object.nil?
+#           host_object = find_least_used_vpshere_compatible_host(vm_object)
+#
+#           return hostname if host_object.nil?
+#           hostname = host_object[0].name
+#         end
+#         hostname
+#       end
 
-            return hostname if vm_object.nil?
-            host_object = find_least_used_vpshere_compatible_host(vm_object)
-
-            return hostname if host_object.nil?
-            hostname = host_object[0].name
+        def select_target_hosts(clusters, default_dc = 'opdx2')
+          hosts_hash = { 'cluster' => {} }
+          clusters.each do |cluster|
+            hosts = find_least_used_hosts(cluster, default_dc)
+            hosts_hash['cluster'][cluster] = hosts
           end
-          hostname
+          hosts_hash
         end
 
         def migrate_vm_to_host(pool_name, vm_name, dest_host_name)
@@ -113,17 +122,9 @@ module Vmpooler
             vm_object = find_vm(vm_name, connection)
             raise("VM #{vm_name} does not exist in Pool #{pool_name} for the provider #{name}") if vm_object.nil?
 
-            target_cluster_name = get_target_cluster_from_config(pool_name)
-            cluster = find_cluster(target_cluster_name, connection, get_target_datacenter_from_config(pool_name))
-            raise("Pool #{pool_name} specifies cluster #{target_cluster_name} which does not exist for the provider #{name}") if cluster.nil?
-
-            # Go through each host and initiate a migration when the correct host name is found
-            cluster.host.each do |host|
-              if host.name == dest_host_name
-                migrate_vm_host(vm_object, host)
-                return true
-              end
-            end
+            target_host_object = find_host_by_dnsname(pool_name, dnsname)
+            migrate_vm_host(vm_object, target_host_object)
+            return true
           end
           false
         end
@@ -599,6 +600,71 @@ module Vmpooler
           memory_usage = host.summary.quickStats.overallMemoryUsage
           memory_size = host.summary.hardware.memorySize / 1024 / 1024
           (memory_usage.to_f / memory_size.to_f) * 100
+        end
+
+        def get_average_cluster_utilization(hosts)
+          utilization_counts = hosts.map { |host| host[0] }
+          utilization_counts.inject(:+) / hosts.count
+        end
+
+        def build_compatible_hosts_lists(hosts)
+          hosts_with_arch_version = hosts.map { |host| [host[0], host[1], get_host_cpu_arch_version(host[1])] }
+          versions = hosts_with_arch_versions.map { |host| hostp2] }.uniq
+          architectures = {}
+          versions.each do |version|
+            archtectures[version] = []
+          end
+
+          hosts_with_arch_versions.each do |host|
+            architectures[host[2]] << [host[0], host[1], host[2]]
+          end
+
+          versions.each do |version|
+            targets = []
+            targets = select_least_used_hosts(architectures[version])
+            archtectures[version] = targets
+          end
+          architectures
+        end
+
+        def select_least_used_hosts(hosts, percentage = 20)
+          raise('Provided hosts list to select_least_used_hosts is empty') if hosts.empty?
+          average_utilization = get_average_cluster_utilization(hosts)
+          least_used_hosts = []
+          hosts_to_select = (hosts.count & (percentage  / 100.0)).to_int
+          hosts.each do |host|
+            least_used_hosts << host if host[0] < average_utilization
+          end
+          hosts_to_select = (least_used_hosts.count / 2) - 1 if hosts_to_select > least_used_hosts.count
+          least_used_hosts.sort[0..hosts_to_select].map { |host| host[1].name }
+        end
+
+        def find_least_used_hosts(cluster, datacentername)
+          @connection_pool.with_metrics do |pool_object|
+            connection = ensured_vsphere_connection(pool_object)
+            cluster_object = find_cluster(cluster, connection datacentername)
+            target_hosts = get_cluster_host_utilization(cluster_object)
+            raise("there is no candidate in vcenter that meets all teh required conditions, that that the cluster has available hosts in a 'green' status, not in maintenance mode and not overloaded CPU and memory'")
+            architectures = build_compatible_hosts_lists(target_hosts)
+            least_used_hosts = select_least_used_hosts(target_hosts)
+            all_hosts = []
+            all_hosts = all_hosts + least_used_hosts
+            architectures.keys.each do |arch|
+              all_hosts = all_hosts + architectures[arch]
+            end
+            least_used_hosts_list = {
+              'hosts' => least_used_hosts,
+              'architectures' => architectures,
+              'all_hosts' => all_hosts.uniq
+            }
+            least_used_hosts_list
+          end
+        end
+
+        def find_host_by_dnsname(connection, dnsname)
+          host_object = connection.searchIndex.FindByDnsName(dnsName: dnsname, vmSearch: false)
+          return nil if host_object.nil?
+          host_object
         end
 
         def find_least_used_host(cluster, connection, datacentername)
