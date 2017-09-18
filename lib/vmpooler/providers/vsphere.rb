@@ -69,6 +69,26 @@ module Vmpooler
           host_name
         end
 
+        def get_vm_cluster(_pool_name, vm_name)
+          @connection_pool.with_metrics do |pool_object|
+            connection = ensured_vsphere_connection(pool_object)
+            vm_object = find_vm(vm_name, connection)
+            cluster_name = vm_object.summary.runtime.host.parent.name if vm_object.summary && vm_object.summary.runtime && vm_object.summary.runtime.host
+            return cluster_name if cluster_name.nil?
+            cluster_name
+          end
+        end
+
+        def get_vm_architecture(_pool_name, vm_name)
+          @connection_pool.with_metrics do |pool_object|
+            connection = ensured_vsphere_connection(pool_object)
+            vm_object = find_vm(vm_name, connection)
+            vm_host = vm_object.summary.runtime.host
+            vm_architecture = get_host_cpu_arch_version(vm_host)
+            vm_architecture
+          end
+        end
+
         def find_least_used_compatible_host(_pool_name, vm_name)
           hostname = nil
           @connection_pool.with_metrics do |pool_object|
