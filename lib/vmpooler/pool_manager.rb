@@ -21,6 +21,9 @@ module Vmpooler
 
       # Our thread-tracker object
       $threads = {}
+
+      # Host tracking object
+      $provider_hosts = {}
     end
 
     def config
@@ -456,6 +459,67 @@ module Vmpooler
           $logger.log('s', "[!] [snapshot_manager] snapshot revert appears to have failed: #{err}")
         end
       end
+    end
+
+    def get_clusters(config)
+      clusters = []
+      clusters << config[:config]['clone_target']
+      config[:pools].each do |pool|
+        clusters << pool['clone_target'] if pool.key?('clone_target')
+      end
+      clusters.uniq
+    end
+
+    def select_hosts(provider)
+      $provider_hosts['checking'] = true
+      $provider_hosts['check_time_start'] = Time.now
+      clusters = get_clusters($config)
+      hosts_hash = provider.select_target_hosts(clusters)
+      hosts_hash['cluster'].each do |cluster_name, hosts|
+        $logger.log('d', "#{cluster_name} has targets #{hosts}")
+      end
+      $provider_hosts['cluster'] = hosts_hash['cluster']
+      $provider_hosts.delete('checking')
+      $provider_hosts['check_time_finished'] = Time.now
+    end
+
+    def run_select_hosts(provider, pool_name, max_age = 60)
+      now = Time.now
+      if $provider_hosts.key?('checking')
+        wait_for_host_selection(pool_name)
+      elsif $provider_hosts.key?('check_time_finished')
+        select_hosts(provider) if now - $provider_hosts['check_time_finished'] > max_age
+      else
+        select_hosts(provider)
+      end
+    end
+
+    def wait_for_host_selection(pool_name, maxloop = 0, loop_delay = 5, max_age = 60)
+      while $provider_hosts.has_key?('check_time_finished') == false
+        sleep(loop_delay)
+        unless maxloop.zero?
+          break if loop_count >= maxloop
+          loop_count += 1
+        end
+      end
+      while Time.now - $provider_hosts['check_time_finished'] > max_age
+        sleep(loop_delay)
+        unless maxloop.zero?
+          break if loop_count >= maxloop
+          loop_count += 1
+        end
+      end
+    end
+
+    def select_next_host(cluster_name, architecture)
+      time_last_finished = $provider_hosts['check_time_finished']
+      host = $provider_hosts['cluster'][cluster_name]['architectures'][architecture][0]
+      return if host.nil?
+      if time_last_finished == $provider_hosts['check_time_finished']
+        $provider_hosts['cluster'][cluster_name]['architectures'][architecture].delete(host)
+        $provider_hosts['cluster'][cluster_name]['architectures'][architecture] << host
+      end
+      host
     end
 
     def migration_limit(migration_limit)
