@@ -191,12 +191,12 @@ module Vmpooler
             )
 
             # Choose a cluster/host to place the new VM on
-            target_host_object = find_least_used_host(target_cluster_name, connection, target_datacenter_name)
+            target_cluster_object = find_cluster(target_cluster_name, connection, target_datacenter_name)
 
             # Put the VM in the specified folder and resource pool
             relocate_spec = RbVmomi::VIM.VirtualMachineRelocateSpec(
               datastore: find_datastore(target_datastore, connection, target_datacenter_name),
-              host: target_host_object,
+              pool: target_cluster_object.resourcePool,
               diskMoveType: :moveChildMostDiskBacking
             )
 
@@ -559,7 +559,7 @@ module Vmpooler
         #    the host is in maintenance mode
         #    the host status is not 'green'
         #    the cpu or memory utilization is bigger than the limit param
-        def get_host_utilization(host, model = nil, limit = 90)
+        def get_host_utilization(host, model = nil, limit = 80)
           if model
             return nil unless host_has_cpu_model?(host, model)
           end
@@ -570,10 +570,12 @@ module Vmpooler
           cpu_utilization = cpu_utilization_for host
           memory_utilization = memory_utilization_for host
 
+          return nil if cpu_utilization == 0
+          return nil if memory_utilization == 0
           return nil if cpu_utilization > limit
           return nil if memory_utilization > limit
 
-          [cpu_utilization + memory_utilization, host]
+          [cpu_utilization, host]
         end
 
         def host_has_cpu_model?(host, model)
