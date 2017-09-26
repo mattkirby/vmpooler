@@ -1474,6 +1474,104 @@ EOT
   end
 
 
+  describe '#get_clusters' do
+    # Expected to return a unique list of configured clusters
+    it 'should return clusters configured' do
+
+    end
+
+    it 'should not return duplicates when a cluster is specified more than once' do
+
+    end
+
+    it 'should return nil when no clusters are configured' do
+
+    end
+  end
+
+  describe '#select_hosts' do
+    # Populate the $provider_hosts variable
+    it 'should set the check_time_start key' do
+      expect($provider_hosts).to have_key('check_time_start')
+      subject.select_hosts(provider)
+    end
+
+    it 'should set the check_time_finished key' do
+      expect($provider_hosts).to have_key('check_time_finished')
+      subject.select_hosts(provider)
+    end
+
+    it 'should run select_target_hosts' do
+      expect(provider).to receive(:select_target_hosts).with(clusters).and_return(hosts_hash)
+      subject.select_hosts(provider)
+    end
+
+    it "should set $provider_hosts['cluster'] to hosts_hash['cluster']" do
+
+    end
+  end
+
+
+  describe '#run_select_hosts' do
+    # A wrapper to ensure select_hosts is not run more than once, and results are present
+    it 'runs wait_for_host_selection when $provider_hosts has key checking' do
+
+    end
+
+    it 'runs select_hosts if check_time_finished key is present and older than max_age' do
+
+    end
+
+    it 'does not run select_hosts if check_time_finished key is present and not older than max age' do
+
+    end
+
+    it 'runs select_hosts if check_time_finished key is not set on $provider_hosts' do
+
+    end
+  end
+
+
+  describe '#wait_for_host_selection' do
+    let(:pool_name) { }
+    let(:maxloop) { 1 }
+    let(:loop_delay) { 0 }
+    let(:max_age) { 60 }
+
+    it 'sleeps for loop_delay if $provider_hosts does not have key check_time_finished' do
+
+      subject.wait_for_host_selection(pool_name, maxloop, loop_delay, max_age)
+    end
+
+    it 'sleeps for loop_delay only twice when maxloop is 1' do
+
+    end
+
+    it 'sleeps for loop_delay if $provider_hosts has key check_time_finished and age is greater than max_age' do
+
+    end
+  end
+
+
+  describe '#select_next_host' do
+    let(:hosts_hash) { }
+    let(:cluster_name) { 'cluster1' }
+    let(:architecture) { 'v3' }
+
+    it 'returns the first host from the target cluster and architecture list' do
+
+    end
+
+    it 'returns when host is nil' do
+
+    end
+
+    it 'appends the selected host to the end of target_hash' do
+
+    end
+  end
+
+
   describe '#migration_limit' do
     # This is a little confusing.  Is this supposed to return a boolean
     # or integer type?

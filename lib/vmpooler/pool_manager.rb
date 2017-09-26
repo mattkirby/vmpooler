@@ -539,10 +539,6 @@ module Vmpooler
       end
     end
 
-    def host_in_targets?(host_name, targets)
-      return true if targets.include? host_name
-    end
-
     def _migrate_vm(vm_name, pool_name, provider, target_hash = $provider_hosts)
       $redis.srem("vmpooler__migrating__#{pool_name}", vm_name)
 
