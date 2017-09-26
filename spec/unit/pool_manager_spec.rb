@@ -1503,14 +1503,27 @@ EOT
     end
 
     it 'calls _migrate_vm' do
-      expect(subject).to receive(:_migrate_vm).with(vm, pool, provider)
+      expect(subject).to receive(:_migrate_vm).with(vm, pool, provider, $provider_hosts)
 
       subject.migrate_vm(vm, pool, provider)
     end
 
+      let(:provider_hosts) {
+        {
+          'check_time_finished' => Time.now,
+          'clusters' => {
+            'cluster1' => {
+              'hosts' => ['host1'],
+              'architectures' => { 'v3' => ['host1'] },
+              'all_hosts' => ['host1']
+            }
+          }
+        }
+      }
+
     context 'When an error is raised' do
       before(:each) do
-        expect(subject).to receive(:_migrate_vm).with(vm, pool, provider).and_raise('MockError')
+        expect(subject).to receive(:_migrate_vm).with(vm, pool, provider, $provider_hosts).and_raise('MockError')
       end
 
       it 'logs a message' do
@@ -1529,14 +1542,30 @@ EOT
   end
 
   describe "#_migrate_vm" do
-    let(:vm_parent_hostname) { 'parent1' }
+    let(:vm_parent_hostname) { 'host1' }
+    let(:cluster_name) { 'cluster1' }
+    let(:clusters) { [cluster_name] }
+    let(:host_architecture) { 'v3' }
     let(:config) {
       YAML.load(<<-EOT
 ---
 :config:
   migration_limit: 5
+  clone_target: 'cluster1'
 EOT
       )
+    }
+    let(:provider_hosts) {
+      {
+        'check_time_finished' => Time.now,
+        'clusters' => {
+          'cluster1' => {
+            'hosts' => ['host1'],
+            'architectures' => { 'v3' => ['host1'] },
+            'all_hosts' => ['host1']
+          }
+        }
+      }
     }
 
     before(:each) do
@@ -1560,6 +1589,8 @@ EOT
       end
 
       it 'should raise an error' do
+        expect(provider).to receive(:get_vm_cluster).with(pool, vm).and_return(cluster_name)
+        expect(provider).to receive(:get_vm_cpu_architecture).with(pool, vm).and_return(host_architecture)
         expect{ subject._migrate_vm(vm, pool, provider) }.to raise_error(/Unable to determine which host the VM is running on/)
       end
     end
@@ -1567,6 +1598,9 @@ EOT
     context 'when VM exists but migration is disabled' do
       before(:each) do
         create_migrating_vm(vm, pool)
+        expect(provider).to receive(:get_vm_host).with(pool, vm).and_return(vm_parent_hostname)
+        expect(provider).to receive(:get_vm_cluster).with(pool, vm).and_return(cluster_name)
+        expect(provider).to receive(:get_vm_cpu_architecture).with(pool, vm).and_return(host_architecture)
       end
 
       [-1,-32768,false,0].each do |testvalue|
@@ -1576,8 +1610,7 @@ EOT
           subject._migrate_vm(vm, pool, provider)
         end
 
-        it "should remove the VM from vmpooler__migrating queue in redis if the migration limit is #{testvalue}" do
-          redis.sadd("vmpooler__migrating__#{pool}", vm)
+        it "should not remove the VM from vmpooler__migrating queue in redis if the migration limit is #{testvalue}" do
           config[:config]['migration_limit'] = testvalue
 
           expect(redis.sismember("vmpooler__migrating__#{pool}",vm)).to be_truthy
@@ -1589,6 +1622,10 @@ EOT
 
     context 'when VM exists but migration limit is reached' do
       before(:each) do
+        expect(provider).to receive(:get_vm_host).with(pool, vm).and_return(vm_parent_hostname)
+        expect(provider).to receive(:get_vm_cluster).with(pool, vm).and_return(cluster_name)
+        expect(provider).to receive(:get_vm_cpu_architecture).with(pool, vm).and_return(host_architecture)
+        expect(provider).to receive(:select_target_hosts).with(clusters).and_return(provider_hosts)
 
         create_migrating_vm(vm, pool)
         redis.sadd('vmpooler__migration', 'fakevm1')
@@ -1600,78 +1637,122 @@ EOT
 
       it "should not migrate a VM if the migration limit is reached" do
         expect(logger).to receive(:log).with('s',"[ ] [#{pool}] '#{vm}' is running on #{vm_parent_hostname}. No migration will be evaluated since the migration_limit has been reached")
-        subject._migrate_vm(vm, pool, provider)
+        subject._migrate_vm(vm, pool, provider, provider_hosts)
       end
 
       it "should remove the VM from vmpooler__migrating queue in redis if the migration limit is reached" do
         expect(redis.sismember("vmpooler__migrating__#{pool}",vm)).to be_truthy
-        subject._migrate_vm(vm, pool, provider)
+        subject._migrate_vm(vm, pool, provider, provider_hosts)
         expect(redis.sismember("vmpooler__migrating__#{pool}",vm)).to be_falsey
       end
     end
 
     context 'when VM exists but migration limit is not yet reached' do
+
       before(:each) do
         create_migrating_vm(vm, pool)
+        expect(provider).to receive(:get_vm_host).with(pool, vm).and_return(vm_parent_hostname)
+        expect(provider).to receive(:get_vm_cluster).with(pool, vm).and_return(cluster_name)
+        expect(provider).to receive(:get_vm_cpu_architecture).with(pool, vm).and_return(host_architecture)
+        expect(provider).to receive(:select_target_hosts).with(clusters).and_return(provider_hosts)
         redis.sadd('vmpooler__migration', 'fakevm1')
         redis.sadd('vmpooler__migration', 'fakevm2')
       end
 
-      context 'and host to migrate to is the same as the current host' do
+      context 'and current host is within the list of available targets' do
+        let(:target_hosts) { ['host1'] }
+        let(:provider_hosts) {
+          {
+            'check_time_finished' => Time.now,
+            'clusters' => {
+              'cluster1' => {
+                'hosts' => ['host1'],
+                'architectures' => { 'v3' => ['host1'] },
+                'all_hosts' => ['host1']
+              }
+            }
+          }
+        }
+        #
+        #let(:$provider_hosts) { provider_hosts }
+        #let(:target_hosts) { provider_hosts['cluster'][cluster_name]['all_hosts'] }
         before(:each) do
-          expect(provider).to receive(:find_least_used_compatible_host).with(pool, vm).and_return(vm_parent_hostname)
+          #expect(provider).to receive(:find_least_used_compatible_host).with(pool, vm).and_return(vm_parent_hostname)
+          #expect($provider_hosts['cluster'][cluster_name]['all_hosts']).to receive(:include?).with(parent_host_name).and_return(true)
+          #expect(subject).to receive(:host_in_targets?).with(vm_parent_hostname, target_hosts).and_return(true)
         end
 
         it "should not migrate the VM" do
+          expect(provider_hosts['clusters']).to have_key(cluster_name)
           expect(logger).to receive(:log).with('s', "[ ] [#{pool}] No migration required for '#{vm}' running on #{vm_parent_hostname}")
-          subject._migrate_vm(vm, pool, provider)
+          subject._migrate_vm(vm, pool, provider, provider_hosts)
         end
 
         it "should remove the VM from vmpooler__migrating queue in redis" do
           expect(redis.sismember("vmpooler__migrating__#{pool}",vm)).to be_truthy
-          subject._migrate_vm(vm, pool, provider)
+          subject._migrate_vm(vm, pool, provider, provider_hosts)
           expect(redis.sismember("vmpooler__migrating__#{pool}",vm)).to be_falsey
         end
 
         it "should not change the vmpooler_migration queue count" do
           before_count = redis.scard('vmpooler__migration')
-          subject._migrate_vm(vm, pool, provider)
+          subject._migrate_vm(vm, pool, provider, provider_hosts)
           expect(redis.scard('vmpooler__migration')).to eq(before_count)
         end
 
-        it "should call remove_vmpooler_migration_vm" do
-          expect(subject).to receive(:remove_vmpooler_migration_vm)
-          subject._migrate_vm(vm, pool, provider)
+        it "should not call remove_vmpooler_migration_vm" do
+          expect(subject).not_to receive(:remove_vmpooler_migration_vm)
+          subject._migrate_vm(vm, pool, provider, provider_hosts)
         end
       end
 
       context 'and host to migrate to different to the current host' do
-        let(:vm_new_hostname) { 'new_hostname' }
+        let(:vm_new_hostname) { 'host1' }
+        let(:vm_parent_hostname) { 'host2' }
+        let(:cluster_name) { 'cluster1' }
+        let(:dc) { 'dc1' }
+        let(:host_architecture) { 'v3' }
+        let(:provider_hosts) {
+          {
+            'check_time_finished' => Time.now,
+            'clusters' => {
+              'cluster1' => {
+                'hosts' => [ 'host1' ],
+                'architectures' => { 'v3' => ['host1'] },
+                'all_hosts' => ['host1']
+              }
+            }
+          }
+        }
         before(:each) do
-          expect(provider).to receive(:find_least_used_compatible_host).with(pool, vm).and_return(vm_new_hostname)
+          #expect(provider).to receive(:get_vm_host).with(pool, vm).and_return(vm_parent_hostname)
+          #expect(provider).to receive(:select_hosts).with(provider).and_return(vm_new_hostname)
+          expect(subject).to receive(:select_next_host).with(cluster_name, host_architecture, provider_hosts).and_return(provider_hosts['clusters'][cluster_name]['architectures'][host_architecture][0])
+          #expect(provider).to receive(:get_vm_cpu_architecture).with(pool, vm).and_return(host_architecture)
+          #allow(provider).to receive(:select_target_hosts).with([cluster_name], dc).and_return(provider_hosts)
           expect(subject).to receive(:migrate_vm_and_record_timing).with(vm, pool, vm_parent_hostname, vm_new_hostname, provider).and_return('1.00')
         end
 
         it "should migrate the VM" do
           expect(logger).to receive(:log).with('s', "[>] [#{pool}] '#{vm}' migrated from #{vm_parent_hostname} to #{vm_new_hostname} in 1.00 seconds")
-          subject._migrate_vm(vm, pool, provider)
+          subject._migrate_vm(vm, pool, provider, provider_hosts)
         end
 
         it "should remove the VM from vmpooler__migrating queue in redis" do
           expect(redis.sismember("vmpooler__migrating__#{pool}",vm)).to be_truthy
-          subject._migrate_vm(vm, pool, provider)
+          subject._migrate_vm(vm, pool, provider, provider_hosts)
           expect(redis.sismember("vmpooler__migrating__#{pool}",vm)).to be_falsey
         end
 
         it "should not change the vmpooler_migration queue count" do
           before_count = redis.scard('vmpooler__migration')
-          subject._migrate_vm(vm, pool, provider)
+          subject._migrate_vm(vm, pool, provider, provider_hosts)
           expect(redis.scard('vmpooler__migration')).to eq(before_count)
         end
 
         it "should call remove_vmpooler_migration_vm" do
           expect(subject).to receive(:remove_vmpooler_migration_vm)
-          subject._migrate_vm(vm, pool, provider)
+          subject._migrate_vm(vm, pool, provider, provider_hosts)
         end
       end
     end

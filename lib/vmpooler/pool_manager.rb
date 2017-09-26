@@ -475,9 +475,9 @@ module Vmpooler
       $provider_hosts['check_time_start'] = Time.now
       clusters = get_clusters($config)
       hosts_hash = provider.select_target_hosts(clusters)
-      hosts_hash['cluster'].each do |cluster_name, hosts|
-        $logger.log('d', "#{cluster_name} has targets #{hosts}")
-      end
+#     hosts_hash['cluster'].each do |cluster_name, hosts|
+#       $logger.log('d', "#{cluster_name} has targets #{hosts}")
+#     end
       $provider_hosts['cluster'] = hosts_hash['cluster']
       $provider_hosts.delete('checking')
       $provider_hosts['check_time_finished'] = Time.now
@@ -511,13 +511,13 @@ module Vmpooler
       end
     end
 
-    def select_next_host(cluster_name, architecture)
-      time_last_finished = $provider_hosts['check_time_finished']
-      host = $provider_hosts['cluster'][cluster_name]['architectures'][architecture][0]
+    def select_next_host(cluster_name, architecture, target_hash)
+      time_last_finished = target_hash['check_time_finished']
+      host = target_hash['cluster'][cluster_name]['architectures'][architecture][0]
       return if host.nil?
-      if time_last_finished == $provider_hosts['check_time_finished']
-        $provider_hosts['cluster'][cluster_name]['architectures'][architecture].delete(host)
-        $provider_hosts['cluster'][cluster_name]['architectures'][architecture] << host
+      if time_last_finished == target_hash['check_time_finished']
+        target_hash['cluster'][cluster_name]['architectures'][architecture].delete(host)
+        target_hash['cluster'][cluster_name]['architectures'][architecture] << host
       end
       host
     end
@@ -531,7 +531,7 @@ module Vmpooler
     def migrate_vm(vm_name, pool_name, provider)
       Thread.new do
         begin
-          _migrate_vm(vm_name, pool_name, provider)
+          _migrate_vm(vm_name, pool_name, provider, $provider_hosts)
         rescue => err
           $logger.log('s', "[x] [#{pool_name}] '#{vm_name}' migration failed with an error: #{err}")
           remove_vmpooler_migration_vm(pool_name, vm_name)
@@ -539,8 +539,12 @@ module Vmpooler
       end
     end
 
-    def _migrate_vm(vm_name, pool_name, provider)
-      $redis.srem('vmpooler__migrating__' + pool_name, vm_name)
+    def host_in_targets?(host_name, targets)
+      return true if targets.include? host_name
+    end
+
+    def _migrate_vm(vm_name, pool_name, provider, target_hash = $provider_hosts)
+      $redis.srem("vmpooler__migrating__#{pool_name}", vm_name)
 
       parent_host_name = provider.get_vm_host(pool_name, vm_name)
       cluster_name = provider.get_vm_cluster(pool_name, vm_name)
@@ -550,21 +554,22 @@ module Vmpooler
       migration_count = $redis.scard('vmpooler__migration')
 
       if migration_limit
-        run_select_hosts(provider, pool_name)
-        return
+        run_select_hosts(provider, pool_name, target_hash)
+        all_hosts = target_hash['clusters'][cluster_name]['all_hosts']
+        if migration_count >= migration_limit
+          $logger.log('s', "[ ] [#{pool_name}] '#{vm_name}' is running on #{parent_host_name}. No migration will be evaluated since the migration_limit has been reached")
+        elsif all_hosts.include?(parent_host_name)
+          $logger.log('s', "[ ] [#{pool_name}] No migration required for '#{vm_name}' running on #{parent_host_name}")
+        else
+          $redis.sadd('vmpooler__migration', vm_name)
+          target_host_name = select_next_host(cluster_name, vm_architecture, target_hash)
+          finish = migrate_vm_and_record_timing(vm_name, pool_name, parent_host_name, target_host_name, provider)
+          $logger.log('s', "[>] [#{pool_name}] '#{vm_name}' migrated from #{parent_host_name} to #{target_host_name} in #{finish} seconds")
+          remove_vmpooler_migration_vm(pool_name, vm_name)
+        end
+          return
       else
         $logger.log('s', "[ ] [#{pool_name}] '#{vm_name}' is running on #{parent_host_name}")
-      end
-      if migration_count >= migration_limit
-        $logger.log('s', "[ ] [#{pool_name}] '#{vm_name}' is running on #{parent_host_name}. No migration will be evaluated since the migration_limit has been reached")
-      elsif $provider_hosts['cluster'][cluster_name]['all_hosts'].include? parent_host_name
-          $logger.log('s', "[ ] [#{pool_name}] No migration required for '#{vm_name}' running on #{parent_host_name}")
-      else
-        $redis.sadd('vmpooler__migration', vm_name)
-        target_host_name = select_next_host(cluster_name, vm_architecture)
-        finish = migrate_vm_and_record_timing(vm_name, pool_name, parent_host_name, target_host_name, provider)
-        $logger.log('s', "[>] [#{pool_name}] '#{vm_name}' migrated from #{parent_host_name} to #{host_name} in #{finish} seconds")
-        remove_vmpooler_migration_vm(pool_name, vm_name)
       end
     end
 
