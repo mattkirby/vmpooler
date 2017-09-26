@@ -2034,6 +2034,72 @@ EOT
     end
   end
 
+  describe '#get_vm_cluster' do
+    it 'returns the name of a vm_object parent cluster' do
+
+    end
+
+    it 'returns nil when cluster_name is not found for the vm_object' do
+
+    end
+  end
+
+  describe '#get_vm_cpu_architecture' do
+    it 'returns the architecture of a vm_object parent host' do
+
+    end
+  end
+
+  describe '#select_target_hosts' do
+    it 'returns a hash of the least used hosts by cluster and architecture' do
+
+    end
+
+    it 'raises an error if the target cluster does not exist' do
+
+    end
+
+    it 'finds a cluster without a specified datacenter' do
+
+    end
+
+    it 'finds a cluster with a datacenter specified' do
+
+    end
+  end
+
+  describe '#get_average_cluster_utilization' do
+    it 'returns the average utilization for a given set of host utilizations assuming the first member of the list for each host is the utilization value' do
+
+    end
+  end
+
+  describe '#build_compatible_hosts_lists' do
+    it 'returns a hash of target host architecture versions containing lists of target hosts' do
+
+    end
+  end
+
+  describe '#select_least_used_hosts' do
+    it 'returns the percentage specified of the least used hosts in the cluster determined by selecting from less than or equal to average cluster utilization' do
+
+    end
+
+    it 'raises an error when the provided hosts list is empty' do
+
+    end
+  end
+
+  describe '#find_host_by_dnsname' do
+    it 'returns a host object when a matching host is found by dnsname in connection.searchIndex' do
+
+    end
+
+    it 'returns nil when the host object is not found by dnsname in connection.searchIndex' do
+
+    end
+  end
+
   describe '#find_least_used_hosts' do
     let(:cluster_name) { 'cluster' }
     let(:missing_cluster_name) { 'missing_cluster' }
