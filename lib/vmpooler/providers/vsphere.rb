@@ -139,7 +139,7 @@ module Vmpooler
         end
 
         def create_folder(parent_folder, child_folder)
-          parent_folder.traverse(child_folder, create=true)
+          parent_folder.traverse(child_folder, type=RbVmomi::VIM::Folder, create=true)
         end
 
         def create_vm(pool_name, new_vmname)
