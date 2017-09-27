@@ -1475,34 +1475,119 @@ EOT
 
 
   describe '#get_clusters' do
-    # Expected to return a unique list of configured clusters
-    it 'should return clusters configured' do
 
+    context 'with a single cluster configured' do
+      let(:config) {
+        YAML.load(<<-EOT
+---
+:config:
+  task_limit: 10
+  clone_target: 'cluster1'
+:pools:
+  - name: #{pool}
+    size: 10
+EOT
+        )
+      }
+      let(:clusters) { ['cluster1'] }
+
+      it 'should return clusters configured' do
+        expect(subject).to receive(:get_clusters).with(config).and_return(clusters)
+        subject.get_clusters(config)
+      end
     end
 
-    it 'should not return duplicates when a cluster is specified more than once' do
+    context 'with clusters specified more than once' do
+      let(:config) {
+        YAML.load(<<-EOT
+---
+:config:
+  task_limit: 10
+  clone_target: 'cluster1'
+:pools:
+  - name: #{pool}
+    size: 10
+    clone_target: 'cluster1'
+  - name: #{pool}2
+    size: 10
+    clone_target: 'cluster2'
+EOT
+        )
+      }
+      let(:clusters) { ['cluster1', 'cluster2'] }
 
+      it 'should not return duplicates when a cluster is specified more than once' do
+        expect(subject).to receive(:get_clusters).with(config).and_return(clusters)
+        subject.get_clusters(config)
+      end
     end
 
-    it 'should return nil when no clusters are configured' do
+    context 'with no clone_target configured' do
+      let(:config) {
+        YAML.load(<<-EOT
+---
+:config:
+  task_limit: 10
+EOT
+        )
+      }
 
+      it 'should return nil when no clusters are configured' do
+        expect(subject).to receive(:get_clusters).with(config).and_return(nil)
+
+        subject.get_clusters(config)
+      end
     end
   end
 
   describe '#select_hosts' do
+
+    let(:config) {
+      YAML.load(<<-EOT
+---
+:config:
+  task_limit: 10
+  clone_target: 'cluster1'
+:pools:
+  - name: #{pool}
+    size: 10
+EOT
+      )
+    }
+    let(:provider_hosts) {
+      {
+        'check_time_start' => Time.now - 30,
+        'check_time_finished' => Time.now,
+        'clusters' => {
+          'cluster1' => {
+            'hosts' => [ 'host1' ],
+            'architectures' => { 'v3' => ['host1'] },
+            'all_hosts' => ['host1']
+          }
+        }
+      }
+    }
+    let(:clusters) { ['cluster1'] }
+
+    before(:each) do
+      $provider_hosts = provider_hosts
+    end
+
     # Populate the $provider_hosts variable
     it 'should set the check_time_start key' do
       expect($provider_hosts).to have_key('check_time_start')
+      expect(provider).to receive(:select_target_hosts).with(clusters).and_return(provider_hosts)
       subject.select_hosts(provider)
     end
 
     it 'should set the check_time_finished key' do
       expect($provider_hosts).to have_key('check_time_finished')
+      expect(provider).to receive(:select_target_hosts).with(clusters).and_return(provider_hosts)
       subject.select_hosts(provider)
     end
 
     it 'should run select_target_hosts' do
-      expect(provider).to receive(:select_target_hosts).with(clusters).and_return(hosts_hash)
+      expect(provider).to receive(:select_target_hosts).with(clusters).and_return(provider_hosts)
       subject.select_hosts(provider)
     end
 
@@ -1513,62 +1598,187 @@ EOT
 
 
   describe '#run_select_hosts' do
+    let(:config) {
+      YAML.load(<<-EOT
+---
+:config:
+  task_limit: 10
+  clone_target: 'cluster1'
+:pools:
+  - name: #{pool}
+    size: 10
+EOT
+      )
+    }
+    let(:provider_hosts) {
+      {
+        'check_time_finished' => Time.now,
+        'clusters' => {
+          'cluster1' => {
+            'hosts' => [ 'host1' ],
+            'architectures' => { 'v3' => ['host1'] },
+            'all_hosts' => ['host1']
+          }
+        }
+      }
+    }
+    let(:provider) { double('provider') }
+    let(:pool_object) { config[:pools][0] }
+    let(:pool_name) { pool_object['name'] }
+    let(:maxage) { 60 }
+    let(:clusters) { ['cluster1'] }
     # A wrapper to ensure select_hosts is not run more than once, and results are present
-    it 'runs wait_for_host_selection when $provider_hosts has key checking' do
+
+    context '$provider_hosts has key checking' do
+      before(:each) do
+        $provider_hosts = provider_hosts
+        $provider_hosts['checking'] = true
+      end
+
+      it 'runs wait_for_host_selection' do
+        expect(subject).to receive(:wait_for_host_selection).with(pool_name)
+        subject.run_select_hosts(provider, pool_name, provider_hosts)
+      end
 
     end
 
-    it 'runs select_hosts if check_time_finished key is present and older than max_age' do
+    context '$provider_hosts has check_time_finished key and is 100 seconds old' do
+      before(:each) do
+        $provider_hosts = provider_hosts
+        $provider_hosts['check_time_finished'] = Time.now - 100
+      end
 
+      it 'runs select_hosts' do
+        expect(provider).to receive(:select_target_hosts).with(clusters).and_return(provider_hosts)
+
+        subject.run_select_hosts(provider, pool_name, provider_hosts, maxage)
+      end
     end
 
-    it 'does not run select_hosts if check_time_finished key is present and not older than max age' do
+    context '$provider_hosts has check_time_finished key 10 seconds old' do
+      before(:each) do
+        $provider_hosts = provider_hosts
+        $provider_hosts['check_time_finished'] = Time.now - 10
+      end
 
+      it 'does not run select_hosts' do
+        expect(subject).not_to receive(:select_hosts)
+
+        subject.run_select_hosts(provider, pool_name, provider_hosts)
+      end
     end
 
-    it 'runs select_hosts if check_time_finished key is not set on $provider_hosts' do
+    context '$provider_hosts does not have key check_time_finished' do
+      let(:provider_hosts) { { } }
 
+      before(:each) do
+        $provider_hosts = provider_hosts
+      end
+
+      it 'runs select_hosts' do
+        expect(subject).to receive(:select_hosts).with(provider)
+
+        subject.run_select_hosts(provider, pool_name, provider_hosts)
+      end
     end
   end
 
 
   describe '#wait_for_host_selection' do
-    let(:pool_name) { }
-    let(:maxloop) { 1 }
     let(:loop_delay) { 0 }
     let(:max_age) { 60 }
 
-    it 'sleeps for loop_delay if $provider_hosts does not have key check_time_finished' do
+    context 'when provider_hosts does not have key check_time_finished and maxloop is one' do
+      let(:provider_hosts) { { } }
+      let(:maxloop) { 1 }
 
-      subject.wait_for_host_selection(pool_name, maxloop, loop_delay, max_age)
+      before(:each) do
+        $provider_hosts = provider_hosts
+      end
+
+      it 'sleeps for loop_delay once' do
+        expect(subject).to receive(:sleep).with(loop_delay).exactly(maxloop).times
+
+        subject.wait_for_host_selection(pool, maxloop, loop_delay, max_age)
+      end
     end
 
-    it 'sleeps for loop_delay only twice when maxloop is 1' do
+    context 'when provider_hosts does not have key check_time_finished and maxloop is two' do
+      let(:provider_hosts) { { } }
+      let(:maxloop) { 2 }
 
+      it 'sleeps for loop_delay two times' do
+        expect(subject).to receive(:sleep).with(loop_delay).exactly(maxloop).times
+
+        subject.wait_for_host_selection(pool, maxloop, loop_delay, max_age)
+      end
     end
 
-    it 'sleeps for loop_delay if $provider_hosts has key check_time_finished and age is greater than max_age' do
+    context 'when $provider_hosts has key check_time_finished and age is greater than max_age' do
+      let(:provider_hosts) { { 'check_time_finished' => Time.now - 100 } }
+      let(:maxloop) { 1 }
 
+      it 'sleeps for loop_delay once' do
+        expect(subject).to receive(:sleep).with(loop_delay).exactly(maxloop).times
+
+        subject.wait_for_host_selection(pool, maxloop, loop_delay, max_age)
+      end
     end
   end
 
 
   describe '#select_next_host' do
+
     let(:hosts_hash) { }
     let(:cluster_name) { 'cluster1' }
     let(:architecture) { 'v3' }
+    let(:target_host) { 'host1' }
 
-    it 'returns the first host from the target cluster and architecture list' do
+    context 'with a list of hosts available' do
+      let(:provider_hosts) {
+        {
+          'check_time_finished' => Time.now,
+          'clusters' => {
+            'cluster1' => {
+              'architectures' => { 'v3' => ['host1', 'host2'] }
+            }
+          }
+        }
+      }
 
+      before(:each) do
+        $provider_hosts = provider_hosts
+      end
+
+      it 'returns the first host from the target cluster and architecture list' do
+        expect(subject).to receive(:select_next_host)
+
+        subject.select_next_host(cluster_name, architecture, provider_hosts)
+      end
+
+      it 'appends the selected host to the end of target_hash' do
+        expect(subject).to receive(:select_next_host).and_return(target_host)
+
+        subject.select_next_host(cluster_name, architecture, provider_hosts)
+      end
     end
 
-    it 'returns when host is nil' do
+    context 'with no hosts available' do
+      let(:provider_hosts) {
+        {
+          'check_time_finished' => Time.now,
+          'clusters' => {
+            'cluster1' => { 'architectures' => { 'v3' => [ ] } }
+          }
+        }
+      }
+      it 'returns when host is nil' do
+        expect(subject).to receive(:select_next_host).and_return(nil)
 
+        subject.select_next_host(cluster_name, architecture, provider_hosts)
+      end
     end
 
-    it 'appends the selected host to the end of target_hash' do
-
-    end
   end
 
 
@@ -1723,7 +1933,7 @@ EOT
         expect(provider).to receive(:get_vm_host).with(pool, vm).and_return(vm_parent_hostname)
         expect(provider).to receive(:get_vm_cluster).with(pool, vm).and_return(cluster_name)
         expect(provider).to receive(:get_vm_cpu_architecture).with(pool, vm).and_return(host_architecture)
-        expect(provider).to receive(:select_target_hosts).with(clusters).and_return(provider_hosts)
+        #expect(provider).to receive(:select_target_hosts).with(clusters).and_return(provider_hosts)
 
         create_migrating_vm(vm, pool)
         redis.sadd('vmpooler__migration', 'fakevm1')
@@ -1752,7 +1962,7 @@ EOT
         expect(provider).to receive(:get_vm_host).with(pool, vm).and_return(vm_parent_hostname)
         expect(provider).to receive(:get_vm_cluster).with(pool, vm).and_return(cluster_name)
         expect(provider).to receive(:get_vm_cpu_architecture).with(pool, vm).and_return(host_architecture)
-        expect(provider).to receive(:select_target_hosts).with(clusters).and_return(provider_hosts)
+        #expect(provider).to receive(:select_target_hosts).with(clusters).and_return(provider_hosts)
         redis.sadd('vmpooler__migration', 'fakevm1')
         redis.sadd('vmpooler__migration', 'fakevm2')
       end
