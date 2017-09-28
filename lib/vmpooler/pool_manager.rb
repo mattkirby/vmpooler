@@ -476,10 +476,10 @@ module Vmpooler
       $provider_hosts['check_time_start'] = Time.now
       clusters = get_clusters($config)
       hosts_hash = provider.select_target_hosts(clusters)
-      hosts_hash['cluster'].each do |cluster_name, hosts|
+      $provider_hosts['cluster'] = hosts_hash['cluster']
+      $provider_hosts['cluster'].each do |cluster_name, hosts|
         $logger.log('d', "#{cluster_name} has targets #{hosts}")
       end
-      $provider_hosts['cluster'] = hosts_hash['cluster']
       $provider_hosts.delete('checking')
       $provider_hosts['check_time_finished'] = Time.now
     end
