@@ -209,7 +209,7 @@ module Vmpooler
                 dc = si.serviceInstance.find_datacenter(target_datacenter_name)
                 vm_target_folder = dc.vmFolder.traverse(target_folder_path, type=RbVmomi::VIM::Folder, create=true)
               else
-                raise("Unexpected object type encountered (#{base.class}) while finding folder")
+                raise("Unexpected object type encountered while finding folder")
               end
             end
 
