@@ -555,6 +555,7 @@ module Vmpooler
       if migration_limit
         run_select_hosts(provider, pool_name)
         $logger.log('d', 'getting all hosts')
+        $logger.log('d', "#{$provider_hosts}")
         if migration_count >= migration_limit
           $logger.log('s', "[ ] [#{pool_name}] '#{vm_name}' is running on #{parent_host_name}. No migration will be evaluated since the migration_limit has been reached")
         elsif $provider_hosts['clusters'][cluster_name]['all_hosts'].include?(parent_host_name)
