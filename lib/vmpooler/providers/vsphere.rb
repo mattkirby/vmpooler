@@ -138,10 +138,6 @@ module Vmpooler
           vm_hash
         end
 
-        def create_folder(parent_folder, child_folder)
-          parent_folder.traverse(child_folder, type=RbVmomi::VIM::Folder, create=true)
-        end
-
         def create_vm(pool_name, new_vmname)
           pool = pool_config(pool_name)
           raise("Pool #{pool_name} does not exist for the provider #{name}") if pool.nil?
@@ -202,7 +198,7 @@ module Vmpooler
             begin
               vm_target_folder = find_folder(target_folder_path, connection, target_datacenter_name)
             rescue => _err
-              if _err =~ /Unexpected object type encountered (NilClass) while finding folder/
+              if _err =~ /Unexpected object type encountered/
                 vm_target_folder = nil
               else
                 raise(_err)
@@ -210,19 +206,16 @@ module Vmpooler
             end
             if vm_target_folder.nil?
               if $config[:config][:create_folders] == true
-                target_folder = target_folder_path.split('/')
-                target_folder_child = target_folder.pop
-                target_folder_parent = target_folder.join('/')
-                parent_folder_object = find_folder(target_folder_parent, connection, target_datacenter_name)
-                vm_target_folder = create_folder(target_folder_object, target_folder_child)
+                dc = si.serviceInstance.find_datacenter(target_datacenter_name)
+                vm_target_folder = dc.vmFolder.traverse(target_folder_path, type=RbVmomi::VIM::Folder, create=true)
               else
-                raise('Unexpected object type encountered (NilClass) while finding folder')
+                raise("Unexpected object type encountered (#{base.class}) while finding folder")
               end
             end
 
             # Create the new VM
             new_vm_object = template_vm_object.CloneVM_Task(
-              folder: find_folder(target_folder_path, connection, target_datacenter_name),
+              folder: vm_target_folder,
               name: new_vmname,
               spec: clone_spec
             ).wait_for_completion
