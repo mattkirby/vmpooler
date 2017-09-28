@@ -205,7 +205,7 @@ module Vmpooler
               end
             end
             if vm_target_folder.nil?
-              if $config[:config][:create_folders] == true
+              if $config[:config]['create_folders'] == true
                 dc = si.serviceInstance.find_datacenter(target_datacenter_name)
                 vm_target_folder = dc.vmFolder.traverse(target_folder_path, type=RbVmomi::VIM::Folder, create=true)
               else
