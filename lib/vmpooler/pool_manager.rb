@@ -484,12 +484,12 @@ module Vmpooler
       $provider_hosts['check_time_finished'] = Time.now
     end
 
-    def run_select_hosts(provider, pool_name, target_hosts_hash, max_age = 60)
+    def run_select_hosts(provider, pool_name, max_age = 60)
       now = Time.now
-      if target_hosts_hash.key?('checking')
+      if $provider_hosts.key?('checking')
         wait_for_host_selection(pool_name)
-      elsif target_hosts_hash.key?('check_time_finished')
-        select_hosts(provider) if now - target_hosts_hash['check_time_finished'] > max_age
+      elsif $provider_hosts.key?('check_time_finished')
+        select_hosts(provider) if now - $provider_hosts['check_time_finished'] > max_age
       else
         select_hosts(provider)
       end
@@ -553,7 +553,7 @@ module Vmpooler
       migration_count = $redis.scard('vmpooler__migration')
 
       if migration_limit
-        run_select_hosts(provider, pool_name, $provider_hosts)
+        run_select_hosts(provider, pool_name)
         $logger.log('d', 'getting all hosts')
         all_hosts = $provider_hosts['clusters'][cluster_name]['all_hosts']
         if migration_count >= migration_limit
