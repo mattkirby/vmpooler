@@ -89,7 +89,7 @@ module Vmpooler
           end
         end
 
-        def select_target_hosts(clusters, default_dc = 'opdx2')
+        def select_target_hosts(clusters, default_dc = 'opdx1')
           hosts_hash = { 'cluster' => {} }
           clusters.each do |cluster|
             hosts = find_least_used_hosts(cluster, default_dc)
