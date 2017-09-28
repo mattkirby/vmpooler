@@ -561,7 +561,9 @@ module Vmpooler
           $logger.log('s', "[ ] [#{pool_name}] No migration required for '#{vm_name}' running on #{parent_host_name}")
         else
           $redis.sadd('vmpooler__migration', vm_name)
+          $logger.log('d', 'getting hostname for migration')
           target_host_name = select_next_host(cluster_name, vm_architecture, target_hash)
+          $logger.log('d', 'migrating vm')
           finish = migrate_vm_and_record_timing(vm_name, pool_name, parent_host_name, target_host_name, provider)
           $logger.log('s', "[>] [#{pool_name}] '#{vm_name}' migrated from #{parent_host_name} to #{target_host_name} in #{finish} seconds")
           remove_vmpooler_migration_vm(pool_name, vm_name)
