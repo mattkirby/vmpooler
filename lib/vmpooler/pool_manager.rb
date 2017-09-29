@@ -497,7 +497,6 @@ module Vmpooler
 
     def wait_for_host_selection(pool_name, maxloop = 0, loop_delay = 5, max_age = 60)
       loop_count = 1
-      $logger.log('d', "[ ] [#{pool_name}] is waiting for host selection")
       while $provider_hosts.has_key?('check_time_finished') == false
         sleep(loop_delay)
         unless maxloop.zero?
@@ -505,7 +504,6 @@ module Vmpooler
           loop_count += 1
         end
       end
-      $logger.log('d', "[ ] [#{pool_name}] is waiting for host selection")
       return unless $provider_hosts.has_key?('check_time_finished')
       loop_count = 1
       while Time.now - $provider_hosts['check_time_finished'] > max_age
@@ -554,17 +552,13 @@ module Vmpooler
 
       if migration_limit
         run_select_hosts(provider, pool_name)
-        $logger.log('d', 'getting all hosts')
-        $logger.log('d', "#{$provider_hosts}")
         if migration_count >= migration_limit
           $logger.log('s', "[ ] [#{pool_name}] '#{vm_name}' is running on #{parent_host_name}. No migration will be evaluated since the migration_limit has been reached")
         elsif $provider_hosts['cluster'][cluster_name]['all_hosts'].include?(parent_host_name)
           $logger.log('s', "[ ] [#{pool_name}] No migration required for '#{vm_name}' running on #{parent_host_name}")
         else
           $redis.sadd('vmpooler__migration', vm_name)
-          $logger.log('d', 'getting hostname for migration')
           target_host_name = select_next_host(cluster_name, vm_architecture, $provider_hosts)
-          $logger.log('d', 'migrating vm')
           finish = migrate_vm_and_record_timing(vm_name, pool_name, parent_host_name, target_host_name, provider)
           $logger.log('s', "[>] [#{pool_name}] '#{vm_name}' migrated from #{parent_host_name} to #{target_host_name} in #{finish} seconds")
           remove_vmpooler_migration_vm(pool_name, vm_name)
