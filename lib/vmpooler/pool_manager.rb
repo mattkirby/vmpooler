@@ -476,7 +476,7 @@ module Vmpooler
       clusters.uniq
     end
 
-    def select_hosts(provider)
+    def select_hosts(pool_name, provider)
       $provider_hosts['checking'] = true
       $provider_hosts['check_time_start'] = Time.now
       clusters = get_clusters($config)
@@ -494,9 +494,9 @@ module Vmpooler
       if $provider_hosts.key?('checking')
         wait_for_host_selection(pool_name)
       elsif $provider_hosts.key?('check_time_finished')
-        select_hosts(provider) if now - $provider_hosts['check_time_finished'] > max_age
+        select_hosts(pool_name, provider) if now - $provider_hosts['check_time_finished'] > max_age
       else
-        select_hosts(provider)
+        select_hosts(pool_name, provider)
       end
     end
 
@@ -652,7 +652,8 @@ module Vmpooler
           loop_count = 1
           loop_delay = loop_delay_min
           provider = get_provider_for_pool(pool['name'])
-          $logger.log('d', "provider for #{pool['name']} is #{provider['name']}")
+          provider_name = $config[:pools][pool['name']['provider']
+          $logger.log('d', "provider for #{pool['name']} is #{provider_name}")
           raise("Could not find provider '#{pool['provider']}") if provider.nil?
           loop do
             result = _check_pool(pool, provider)
