@@ -653,7 +653,7 @@ module Vmpooler
           loop_delay = loop_delay_min
           provider = get_provider_for_pool(pool['name'])
           provider_name = pool['provider']
-          $logger.log('d', "provider for #{pool['name']} is #{provider_name}")
+          $logger.log('d', "provider for #{pool['name']} is #{provider.methods}")
           raise("Could not find provider '#{pool['provider']}") if provider.nil?
           loop do
             result = _check_pool(pool, provider)
