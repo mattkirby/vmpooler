@@ -463,9 +463,14 @@ module Vmpooler
 
     def get_clusters(config)
       clusters = []
-      clusters << config[:config]['clone_target'] if config[:config].key?('clone_target')
+      clusters << [config[:config]['clone_target']] if config[:config].key?('clone_target')
       config[:pools].each do |pool|
-        clusters << pool['clone_target'] if pool.key?('clone_target')
+        c = []
+        if pool.key?('clone_target')
+          c['cluster'] = pool['clone_target']
+          c['datacenter'] = pool['datacenter'] if pool.key?('datacenter')
+          clusters << c
+        end
       end
       return if clusters.empty?
       clusters.uniq
@@ -476,7 +481,7 @@ module Vmpooler
       $provider_hosts['check_time_start'] = Time.now
       clusters = get_clusters($config)
       hosts_hash = provider.select_target_hosts(clusters)
-      $provider_hosts['cluster'] = hosts_hash['cluster']
+      $provider_hosts['datacenter'] = hosts_hash['datacenter']
       $provider_hosts['cluster'].each do |cluster_name, hosts|
         $logger.log('d', "#{cluster_name} has targets #{hosts}")
       end
@@ -647,6 +652,7 @@ module Vmpooler
           loop_count = 1
           loop_delay = loop_delay_min
           provider = get_provider_for_pool(pool['name'])
+          $logger.log('d', "provider for #{pool['name']} is #{provider}")
           raise("Could not find provider '#{pool['provider']}") if provider.nil?
           loop do
             result = _check_pool(pool, provider)

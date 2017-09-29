@@ -90,10 +90,13 @@ module Vmpooler
         end
 
         def select_target_hosts(clusters, default_dc = 'opdx1')
-          hosts_hash = { 'cluster' => {} }
+          hosts_hash = { 'datacenter' => {} }
           clusters.each do |cluster|
-            hosts = find_least_used_hosts(cluster, default_dc)
-            hosts_hash['cluster'][cluster] = hosts
+            cluster << default_dc unless cluster.size == 2
+            target_cluster = cluster[0]
+            datacenter = cluster[1]
+            hosts = find_least_used_hosts(target_cluster, datacenter)
+            hosts_hash['datacenter'][datacenter]['cluster'][target_cluster] = hosts
           end
           hosts_hash
         end
