@@ -649,6 +649,7 @@ module Vmpooler
           loop_count = 1
           loop_delay = loop_delay_min
           provider = get_provider_for_pool(pool['name'])
+          raise("Could not find provider '#{pool['provider']}") if provider.nil?
           loop do
             result = _check_pool(pool, provider)
 
