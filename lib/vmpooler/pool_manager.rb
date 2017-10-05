@@ -461,42 +461,40 @@ module Vmpooler
       end
     end
 
-    def get_clusters(config)
-      clusters = []
-      clusters << [config[:config]['clone_target']] if config[:config].key?('clone_target')
-      config[:pools].each do |pool|
-        c = []
-        if pool.key?('clone_target')
-          c['cluster'] = pool['clone_target']
-          c['datacenter'] = pool['datacenter'] if pool.key?('datacenter')
-          clusters << c
-        end
-      end
-      return if clusters.empty?
-      clusters.uniq
+    def get_cluster(pool_name)
+      default_cluster = [$config[:config]['clone_target']] if $config[:config].key?('clone_target')
+      cluster = $config[:pools][pool_name]['clone_target'] if $config[:pools][pool_name].key?('clone_target')
+      cluster = default_cluster if cluster.nil?
+      datacenter = $config[:pools][pool_name]['datacenter']
+      return if cluster.nil?
+      { 'cluster' => cluster, 'datacenter' => datacenter }
     end
 
-    def select_hosts(pool_name, provider)
-      $provider_hosts['checking'] = true
-      $provider_hosts['check_time_start'] = Time.now
-      clusters = get_clusters($config)
+    def select_hosts(pool_name, provider, provider_name, cluster_name, datacenter_name)
+      provider_name = $config[:pools][pool_name]['provider']
+      $provider_hosts[provider_name] = {} unless $provider_hosts.key?(provider_name)
+      $provider_hosts[provider_name][datacenter] = {} unless $provider_hosts[provider_name].key?(datacenter)
+      $provider_hosts[provider_name][datacenter][cluster] = {} unless $provider_hosts[provider_name][datacenter].key?(cluster)
+      $provider_hosts[provider_name][datacenter][cluster]['checking'] = true
+      $provider_hosts[provider_name][datacenter][cluster]['check_time_start'] = Time.now
+      clusters = get_cluster(pool_name)
       hosts_hash = provider.select_target_hosts(clusters)
-      $provider_hosts['datacenter'] = hosts_hash['datacenter']
-      $provider_hosts['cluster'].each do |cluster_name, hosts|
-        $logger.log('d', "#{cluster_name} has targets #{hosts}")
+      $provider_hosts[provider_name][datacenter][cluster] = hosts_hash
+      $provider_hosts[provider_name][datacenter][cluster].each do |cluster_name, targets|
+        $logger.log('d', "#{datacenter_name} has targets #{targets}")
       end
-      $provider_hosts.delete('checking')
-      $provider_hosts['check_time_finished'] = Time.now
+      $provider_hosts[provider_name][datacenter][cluster].delete('checking')
+      $provider_hosts[provider_name][datacenter][cluster]['check_time_finished'] = Time.now
     end
 
-    def run_select_hosts(provider, pool_name, max_age = 60)
+    def run_select_hosts(provider, pool_name, provider_name, cluster_name, datacenter_name, max_age = 60)
       now = Time.now
-      if $provider_hosts.key?('checking')
+      if $provider_hosts.key?(provider_name) and $provider_hosts[provider_name].key?(datacenter_name) and $provider_hosts[provider_name][datacenter_name].key?(cluster_name) and $provider_hosts[provider_name][datacenter_name][cluster_name].key?('checking')
         wait_for_host_selection(pool_name)
-      elsif $provider_hosts.key?('check_time_finished')
-        select_hosts(pool_name, provider) if now - $provider_hosts['check_time_finished'] > max_age
+      elsif $provider_hosts.key?(provider_name) and $provider_hosts[provider_name].key?(datacenter_name) and $provider_hosts[provider_name][datacenter_name].key?(cluster_name) and $provider_hosts.key?('check_time_finished')
+        select_hosts(pool_name, provider, provider_name, cluster_name, datacenter_name) if now - $provider_hosts[provider_name][datacenter_name][cluster_name]['check_time_finished'] > max_age
       else
-        select_hosts(pool_name, provider)
+        select_hosts(pool_name, provider, provider_name, cluster_name, datacenter_name)
       end
     end
 
@@ -520,11 +518,11 @@ module Vmpooler
       end
     end
 
-    def select_next_host(cluster_name, architecture, target_hash)
-      host = target_hash['cluster'][cluster_name]['architectures'][architecture][0]
+    def select_next_host(target_hash)
+      host = target_hash[0]
       return if host.nil?
-      target_hash['cluster'][cluster_name]['architectures'][architecture].delete(host)
-      target_hash['cluster'][cluster_name]['architectures'][architecture] << host
+      target_hash.delete(host)
+      target_hash << host
       host
     end
 
@@ -548,29 +546,28 @@ module Vmpooler
     def _migrate_vm(vm_name, pool_name, provider, target_hash = $provider_hosts)
       $redis.srem("vmpooler__migrating__#{pool_name}", vm_name)
 
-      parent_host_name = provider.get_vm_host(pool_name, vm_name)
-      cluster_name = provider.get_vm_cluster(pool_name, vm_name)
-      vm_architecture = provider.get_vm_cpu_architecture(pool_name, vm_name)
-      raise('Unable to determine which host the VM is running on') if parent_host_name.nil?
+      provider_name = $config[:pools][pool_name]['provider'] || $config[:providers].first[0].to_s || 'default'
+      vm = provider.get_vm_details(pool_name, vm_name)
+      raise('Unable to determine which host the VM is running on') if vm['host'].nil?
       migration_limit = migration_limit $config[:config]['migration_limit']
       migration_count = $redis.scard('vmpooler__migration')
 
       if migration_limit
-        run_select_hosts(provider, pool_name)
+        run_select_hosts(provider, pool_name, provider_name, vm['cluster'], vm['datacenter'])
         if migration_count >= migration_limit
-          $logger.log('s', "[ ] [#{pool_name}] '#{vm_name}' is running on #{parent_host_name}. No migration will be evaluated since the migration_limit has been reached")
-        elsif $provider_hosts['cluster'][cluster_name]['all_hosts'].include?(parent_host_name)
-          $logger.log('s', "[ ] [#{pool_name}] No migration required for '#{vm_name}' running on #{parent_host_name}")
+          $logger.log('s', "[ ] [#{pool_name}] '#{vm_name}' is running on #{vm['host']}. No migration will be evaluated since the migration_limit has been reached")
+        elsif $provider_hosts[provider_name][vm['datacenter']][vm['cluster']]['all_hosts'].include?(vm['host'])
+          $logger.log('s', "[ ] [#{pool_name}] No migration required for '#{vm_name}' running on #{vm['host']}")
         else
           $redis.sadd('vmpooler__migration', vm_name)
-          target_host_name = select_next_host(cluster_name, vm_architecture, $provider_hosts)
-          finish = migrate_vm_and_record_timing(vm_name, pool_name, parent_host_name, target_host_name, provider)
-          $logger.log('s', "[>] [#{pool_name}] '#{vm_name}' migrated from #{parent_host_name} to #{target_host_name} in #{finish} seconds")
+          target_host_name = select_next_host($provider_hosts[provider_name][vm['datacenter']][vm['cluster']]['architectures'][vm['architecture']])
+          finish = migrate_vm_and_record_timing(vm_name, pool_name, vm['host'], target_host_name, provider)
+          $logger.log('s', "[>] [#{pool_name}] '#{vm_name}' migrated from #{vm['host']} to #{target_host_name} in #{finish} seconds")
           remove_vmpooler_migration_vm(pool_name, vm_name)
         end
           return
       else
-        $logger.log('s', "[ ] [#{pool_name}] '#{vm_name}' is running on #{parent_host_name}")
+        $logger.log('s', "[ ] [#{pool_name}] '#{vm_name}' is running on #{vm['host']}")
       end
     end
 
@@ -653,7 +650,8 @@ module Vmpooler
           loop_delay = loop_delay_min
           provider = get_provider_for_pool(pool['name'])
           provider_name = pool['provider']
-          $logger.log('d', "provider for #{pool['name']} is #{provider.methods}")
+          provider_name = $config[:providers].first[0].to_s unless provider_name
+          $logger.log('d', "provider for #{pool['name']} is #{provider}")
           raise("Could not find provider '#{pool['provider']}") if provider.nil?
           loop do
             result = _check_pool(pool, provider)

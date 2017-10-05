@@ -56,17 +56,20 @@ module Vmpooler
           vms
         end
 
-        def get_vm_host(_pool_name, vm_name)
-          host_name = nil
+        def get_vm_details(_pool_name, vm_name)
+          vm_hash = {}
 
           @connection_pool.with_metrics do |pool_object|
             connection = ensured_vsphere_connection(pool_object)
             vm_object = find_vm(vm_name, connection)
-            return host_name if vm_object.nil?
-
-            host_name = vm_object.summary.runtime.host.name if vm_object.summary && vm_object.summary.runtime && vm_object.summary.runtime.host
+            return nil if vm_object.nil?
+            parent_host = vm_object.summary.runtime.host if vm_object.summary && vm_object.summary.runtime && vm_object.summary.runtime.host
+            vm_hash['host'] = parent_host.name
+            vm_hash['architecture'] = get_host_cpu_arch_version(parent_host)
+            vm_hash['cluster'] = parent_host.parent.name
+            vm_hash['datacenter'] = parent_host.parent.parent.name
           end
-          host_name
+          vm_hash
         end
 
         def get_vm_cluster(_pool_name, vm_name)
@@ -89,15 +92,8 @@ module Vmpooler
           end
         end
 
-        def select_target_hosts(clusters, default_dc = 'opdx1')
-          hosts_hash = { 'datacenter' => {} }
-          clusters.each do |cluster|
-            cluster << default_dc unless cluster.size == 2
-            target_cluster = cluster[0]
-            datacenter = cluster[1]
-            hosts = find_least_used_hosts(target_cluster, datacenter)
-            hosts_hash['datacenter'][datacenter]['cluster'][target_cluster] = hosts
-          end
+        def select_target_hosts(cluster, datacenter)
+          hosts_hash = find_least_used_hosts(cluster, datacenter)
           hosts_hash
         end
 
