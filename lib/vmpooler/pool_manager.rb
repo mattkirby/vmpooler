@@ -483,7 +483,6 @@ module Vmpooler
     end
 
     def select_hosts(pool_name, provider, provider_name, cluster_name, datacenter_name)
-      provider_name = $config[:pools][pool_name]['provider']
       $provider_hosts[provider_name] = {} unless $provider_hosts.key?(provider_name)
       $provider_hosts[provider_name][datacenter] = {} unless $provider_hosts[provider_name].key?(datacenter)
       $provider_hosts[provider_name][datacenter][cluster] = {} unless $provider_hosts[provider_name][datacenter].key?(cluster)
