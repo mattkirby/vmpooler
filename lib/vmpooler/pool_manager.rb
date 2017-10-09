@@ -461,12 +461,24 @@ module Vmpooler
       end
     end
 
+    def get_provider_name(pool_name, config = $config)
+      pool = config[:pools].select { |p| p['name'] == pool_name }[0]
+      provider_name = pool['provider'] if pool.key?('provider')
+      provider_name = pool['providers'].first[0].to_s if provider_name.nil?
+      provider_name = 'default' if provider_name.nil?
+      provider_name
+    end
+
     def get_cluster(pool_name)
-      default_cluster = [$config[:config]['clone_target']] if $config[:config].key?('clone_target')
-      cluster = $config[:pools][pool_name]['clone_target'] if $config[:pools][pool_name].key?('clone_target')
+      default_cluster = $config[:config]['clone_target'] if $config[:config].key?('clone_target')
+      default_datacenter = $config[:config]['datacenter'] if $config[:config].key?('datacenter')
+      pool = $config[:pools].select { |p| p['name'] == pool_name }[0]
+      cluster = pool['clone_target'] if pool.key?('clone_target')
       cluster = default_cluster if cluster.nil?
-      datacenter = $config[:pools][pool_name]['datacenter']
+      datacenter = pool['datacenter'] if pool.key?('datacenter')
+      datacenter = default_datacenter if datacenter.nil?
       return if cluster.nil?
+      return if datacenter.nil?
       { 'cluster' => cluster, 'datacenter' => datacenter }
     end
 
@@ -547,7 +559,7 @@ module Vmpooler
       $redis.srem("vmpooler__migrating__#{pool_name}", vm_name)
 
       $logger.log('s', 'getting provider name')
-      provider_name = $config[:pools][pool_name]['provider'] #|| $config[:providers].first[0].to_s || 'default'
+      provider_name = get_provider_name(pool_name)
       $logger.log('s', 'getting VM details')
       vm = provider.get_vm_details(pool_name, vm_name)
       raise('Unable to determine which host the VM is running on') if vm['host'].nil?
