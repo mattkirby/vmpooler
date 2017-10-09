@@ -67,7 +67,7 @@ module Vmpooler
             vm_hash['host'] = parent_host.name
             vm_hash['architecture'] = get_host_cpu_arch_version(parent_host)
             vm_hash['cluster'] = parent_host.parent.name
-            vm_hash['datacenter'] = parent_host.parent.parent.name
+            vm_hash['datacenter'] = parent_host.parent.parent.parent.name
           end
           vm_hash
         end
