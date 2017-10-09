@@ -546,14 +546,20 @@ module Vmpooler
     def _migrate_vm(vm_name, pool_name, provider, target_hash = $provider_hosts)
       $redis.srem("vmpooler__migrating__#{pool_name}", vm_name)
 
+      $logger.log('s', 'getting provider name')
       provider_name = $config[:pools][pool_name]['provider'] || $config[:providers].first[0].to_s || 'default'
+      $logger.log('s', 'getting VM details')
       vm = provider.get_vm_details(pool_name, vm_name)
       raise('Unable to determine which host the VM is running on') if vm['host'].nil?
+      $logger.log('s', 'getting migration limit')
       migration_limit = migration_limit $config[:config]['migration_limit']
+      $logger.log('s', 'getting migration count')
       migration_count = $redis.scard('vmpooler__migration')
 
       if migration_limit
+        $logger.log('s', 'running run_select_hosts')
         run_select_hosts(provider, pool_name, provider_name, vm['cluster'], vm['datacenter'])
+        $logger.log('s', 'evaluating migration')
         if migration_count >= migration_limit
           $logger.log('s', "[ ] [#{pool_name}] '#{vm_name}' is running on #{vm['host']}. No migration will be evaluated since the migration_limit has been reached")
         elsif $provider_hosts[provider_name][vm['datacenter']][vm['cluster']]['all_hosts'].include?(vm['host'])
