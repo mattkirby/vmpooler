@@ -501,11 +501,14 @@ module Vmpooler
 
     def run_select_hosts(provider, pool_name, provider_name, cluster_name, datacenter_name, max_age = 60)
       now = Time.now
+      $logger.log('s', 'Evaluating contents of $provider_hosts')
       if $provider_hosts.key?(provider_name) and $provider_hosts[provider_name].key?(datacenter_name) and $provider_hosts[provider_name][datacenter_name].key?(cluster_name) and $provider_hosts[provider_name][datacenter_name][cluster_name].key?('checking')
         wait_for_host_selection(pool_name)
       elsif $provider_hosts.key?(provider_name) and $provider_hosts[provider_name].key?(datacenter_name) and $provider_hosts[provider_name][datacenter_name].key?(cluster_name) and $provider_hosts.key?('check_time_finished')
+        $logger.log('s', 'Would run select_hosts')
         select_hosts(pool_name, provider, provider_name, cluster_name, datacenter_name) if now - $provider_hosts[provider_name][datacenter_name][cluster_name]['check_time_finished'] > max_age
       else
+        $logger.log('s', 'Would run select_hosts')
         select_hosts(pool_name, provider, provider_name, cluster_name, datacenter_name)
       end
     end
@@ -570,6 +573,7 @@ module Vmpooler
 
       if migration_limit
         $logger.log('s', 'running run_select_hosts')
+        $logger.log('s', "vm is #{vm}")
         run_select_hosts(provider, pool_name, provider_name, vm['cluster'], vm['datacenter'])
         $logger.log('s', 'evaluating migration')
         if migration_count >= migration_limit
