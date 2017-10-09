@@ -547,7 +547,7 @@ module Vmpooler
       $redis.srem("vmpooler__migrating__#{pool_name}", vm_name)
 
       $logger.log('s', 'getting provider name')
-      provider_name = $config[:pools][pool_name]['provider'] || $config[:providers].first[0].to_s || 'default'
+      provider_name = $config[:pools][pool_name]['provider'] #|| $config[:providers].first[0].to_s || 'default'
       $logger.log('s', 'getting VM details')
       vm = provider.get_vm_details(pool_name, vm_name)
       raise('Unable to determine which host the VM is running on') if vm['host'].nil?
