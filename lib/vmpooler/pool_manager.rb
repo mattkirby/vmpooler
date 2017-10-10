@@ -500,11 +500,11 @@ module Vmpooler
     def run_select_hosts(provider, pool_name, provider_name, cluster, datacenter, max_age = 60)
       now = Time.now
       $logger.log('s', 'Evaluating contents of $provider_hosts')
-      if $provider_hosts.key?(provider_name) and $provider_hosts[provider_name].key?(datacenter) and $provider_hosts[provider_name][datacenter].key?(cluster) and $provider_hosts[provider_name][datacenter][cluster_name].key?('checking')
+      if $provider_hosts.key?(provider_name) and $provider_hosts[provider_name].key?(datacenter) and $provider_hosts[provider_name][datacenter].key?(cluster) and $provider_hosts[provider_name][datacenter][cluster].key?('checking')
         wait_for_host_selection(pool_name)
       elsif $provider_hosts.key?(provider_name) and $provider_hosts[provider_name].key?(datacenter) and $provider_hosts[provider_name][datacenter].key?(cluster) and $provider_hosts.key?('check_time_finished')
         $logger.log('s', 'Would run select_hosts')
-        select_hosts(pool_name, provider, provider_name, cluster, datacenter) if now - $provider_hosts[provider_name][datacenter][cluster_name]['check_time_finished'] > max_age
+        select_hosts(pool_name, provider, provider_name, cluster, datacenter) if now - $provider_hosts[provider_name][datacenter][cluster]['check_time_finished'] > max_age
       else
         $logger.log('s', 'Would run select_hosts')
         select_hosts(pool_name, provider, provider_name, cluster, datacenter)
