@@ -482,33 +482,32 @@ module Vmpooler
       { 'cluster' => cluster, 'datacenter' => datacenter }
     end
 
-    def select_hosts(pool_name, provider, provider_name, cluster_name, datacenter_name)
+    def select_hosts(pool_name, provider, provider_name, cluster, datacenter)
       $provider_hosts[provider_name] = {} unless $provider_hosts.key?(provider_name)
       $provider_hosts[provider_name][datacenter] = {} unless $provider_hosts[provider_name].key?(datacenter)
       $provider_hosts[provider_name][datacenter][cluster] = {} unless $provider_hosts[provider_name][datacenter].key?(cluster)
       $provider_hosts[provider_name][datacenter][cluster]['checking'] = true
       $provider_hosts[provider_name][datacenter][cluster]['check_time_start'] = Time.now
-      clusters = get_cluster(pool_name)
-      hosts_hash = provider.select_target_hosts(clusters)
+      hosts_hash = provider.select_target_hosts(cluster, datacenter)
       $provider_hosts[provider_name][datacenter][cluster] = hosts_hash
       $provider_hosts[provider_name][datacenter][cluster].each do |cluster_name, targets|
-        $logger.log('d', "#{datacenter_name} has targets #{targets}")
+        $logger.log('d', "#{cluster_name} has targets #{targets}")
       end
       $provider_hosts[provider_name][datacenter][cluster].delete('checking')
       $provider_hosts[provider_name][datacenter][cluster]['check_time_finished'] = Time.now
     end
 
-    def run_select_hosts(provider, pool_name, provider_name, cluster_name, datacenter_name, max_age = 60)
+    def run_select_hosts(provider, pool_name, provider_name, cluster, datacenter, max_age = 60)
       now = Time.now
       $logger.log('s', 'Evaluating contents of $provider_hosts')
-      if $provider_hosts.key?(provider_name) and $provider_hosts[provider_name].key?(datacenter_name) and $provider_hosts[provider_name][datacenter_name].key?(cluster_name) and $provider_hosts[provider_name][datacenter_name][cluster_name].key?('checking')
+      if $provider_hosts.key?(provider_name) and $provider_hosts[provider_name].key?(datacenter) and $provider_hosts[provider_name][datacenter_name].key?(cluster) and $provider_hosts[provider_name][datacenter_name][cluster_name].key?('checking')
         wait_for_host_selection(pool_name)
-      elsif $provider_hosts.key?(provider_name) and $provider_hosts[provider_name].key?(datacenter_name) and $provider_hosts[provider_name][datacenter_name].key?(cluster_name) and $provider_hosts.key?('check_time_finished')
+      elsif $provider_hosts.key?(provider_name) and $provider_hosts[provider_name].key?(datacenter) and $provider_hosts[provider_name][datacenter_name].key?(cluster) and $provider_hosts.key?('check_time_finished')
         $logger.log('s', 'Would run select_hosts')
-        select_hosts(pool_name, provider, provider_name, cluster_name, datacenter_name) if now - $provider_hosts[provider_name][datacenter_name][cluster_name]['check_time_finished'] > max_age
+        select_hosts(pool_name, provider, provider_name, cluster, datacenter) if now - $provider_hosts[provider_name][datacenter_name][cluster_name]['check_time_finished'] > max_age
       else
         $logger.log('s', 'Would run select_hosts')
-        select_hosts(pool_name, provider, provider_name, cluster_name, datacenter_name)
+        select_hosts(pool_name, provider, provider_name, cluster, datacenter)
       end
     end
 
