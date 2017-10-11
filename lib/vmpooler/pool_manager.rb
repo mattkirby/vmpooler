@@ -499,14 +499,11 @@ module Vmpooler
 
     def run_select_hosts(provider, pool_name, provider_name, cluster, datacenter, max_age = 60)
       now = Time.now
-      $logger.log('s', 'Evaluating contents of $provider_hosts')
       if $provider_hosts.key?(provider_name) and $provider_hosts[provider_name].key?(datacenter) and $provider_hosts[provider_name][datacenter].key?(cluster) and $provider_hosts[provider_name][datacenter][cluster].key?('checking')
         wait_for_host_selection(pool_name)
       elsif $provider_hosts.key?(provider_name) and $provider_hosts[provider_name].key?(datacenter) and $provider_hosts[provider_name][datacenter].key?(cluster) and $provider_hosts.key?('check_time_finished')
-        $logger.log('s', 'Would run select_hosts')
         select_hosts(pool_name, provider, provider_name, cluster, datacenter) if now - $provider_hosts[provider_name][datacenter][cluster]['check_time_finished'] > max_age
       else
-        $logger.log('s', 'Would run select_hosts')
         select_hosts(pool_name, provider, provider_name, cluster, datacenter)
       end
     end
@@ -559,21 +556,14 @@ module Vmpooler
     def _migrate_vm(vm_name, pool_name, provider, target_hash = $provider_hosts)
       $redis.srem("vmpooler__migrating__#{pool_name}", vm_name)
 
-      $logger.log('s', 'getting provider name')
       provider_name = get_provider_name(pool_name)
-      $logger.log('s', 'getting VM details')
       vm = provider.get_vm_details(pool_name, vm_name)
       raise('Unable to determine which host the VM is running on') if vm['host'].nil?
-      $logger.log('s', 'getting migration limit')
       migration_limit = migration_limit $config[:config]['migration_limit']
-      $logger.log('s', 'getting migration count')
       migration_count = $redis.scard('vmpooler__migration')
 
       if migration_limit
-        $logger.log('s', 'running run_select_hosts')
-        $logger.log('s', "vm is #{vm}")
         run_select_hosts(provider, pool_name, provider_name, vm['cluster'], vm['datacenter'])
-        $logger.log('s', 'evaluating migration')
         if migration_count >= migration_limit
           $logger.log('s', "[ ] [#{pool_name}] '#{vm_name}' is running on #{vm['host']}. No migration will be evaluated since the migration_limit has been reached")
         elsif $provider_hosts[provider_name][vm['datacenter']][vm['cluster']]['all_hosts'].include?(vm['host'])
