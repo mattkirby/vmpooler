@@ -498,7 +498,7 @@ module Vmpooler
     def run_select_hosts(provider, pool_name, provider_name, cluster, datacenter, max_age, percentage)
       now = Time.now
       if $provider_hosts.key?(provider_name) and $provider_hosts[provider_name].key?(datacenter) and $provider_hosts[provider_name][datacenter].key?(cluster) and $provider_hosts[provider_name][datacenter][cluster].key?('checking')
-        wait_for_host_selection(pool_name)
+        wait_for_host_selection(pool_name, provider_name, cluster, datacenter)
       elsif $provider_hosts.key?(provider_name) and $provider_hosts[provider_name].key?(datacenter) and $provider_hosts[provider_name][datacenter].key?(cluster) and $provider_hosts.key?('check_time_finished')
         select_hosts(pool_name, provider, provider_name, cluster, datacenter, percentage) if now - $provider_hosts[provider_name][datacenter][cluster]['check_time_finished'] > max_age
       else
@@ -506,18 +506,18 @@ module Vmpooler
       end
     end
 
-    def wait_for_host_selection(pool_name, maxloop = 0, loop_delay = 5, max_age = 60)
+    def wait_for_host_selection(pool_name, provider_name, cluster, datacenter, maxloop = 0, loop_delay = 5, max_age = 60)
       loop_count = 1
-      while $provider_hosts.has_key?('check_time_finished') == false
+      while $provider_hosts[provider_name][datacenter][cluster].has_key?('check_time_finished') == false
         sleep(loop_delay)
         unless maxloop.zero?
           break if loop_count >= maxloop
           loop_count += 1
         end
       end
-      return unless $provider_hosts.has_key?('check_time_finished')
+      return unless $provider_hosts[provider_name][datacenter][cluster].has_key?('check_time_finished')
       loop_count = 1
-      while Time.now - $provider_hosts['check_time_finished'] > max_age
+      while Time.now - $provider_hosts[provider_name][datacenter][cluster]['check_time_finished'] > max_age
         sleep(loop_delay)
         unless maxloop.zero?
           break if loop_count >= maxloop
