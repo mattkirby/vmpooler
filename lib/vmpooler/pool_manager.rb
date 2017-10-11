@@ -527,10 +527,11 @@ module Vmpooler
     end
 
     def select_next_host(provider_name, datacenter, cluster, architecture)
-      host = $provider_hosts[provider_name][datacenter][cluster]['architectures'][architecture][0]
+      provider_hosts = $provider_hosts
+      host = provider_hosts[provider_name][datacenter][cluster]['architectures'][architecture][0]
       return if host.nil?
-      $provider_hosts[provider_name][datacenter][cluster]['architectures'][architecture].delete(host)
-      $provider_hosts[provider_name][datacenter][cluster]['architectures'][architecture] << host
+      provider_hosts[provider_name][datacenter][cluster]['architectures'][architecture].delete(host)
+      provider_hosts[provider_name][datacenter][cluster]['architectures'][architecture] << host
       host
     end
 
