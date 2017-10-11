@@ -610,7 +610,7 @@ module Vmpooler
           utilization_counts.inject(:+) / hosts.count
         end
 
-        def build_compatible_hosts_lists(hosts)
+        def build_compatible_hosts_lists(hosts, percentage)
           hosts_with_arch_versions = hosts.map { |host| [host[0], host[1], get_host_cpu_arch_version(host[1])] }
           versions = hosts_with_arch_versions.map { |host| host[2] }.uniq
           architectures = {}
@@ -624,7 +624,7 @@ module Vmpooler
 
           versions.each do |version|
             targets = []
-            targets = select_least_used_hosts(architectures[version])
+            targets = select_least_used_hosts(architectures[version], percentage)
             architectures[version] = targets
           end
           architectures
@@ -648,7 +648,7 @@ module Vmpooler
             cluster_object = find_cluster(cluster, connection, datacentername)
             target_hosts = get_cluster_host_utilization(cluster_object)
             raise("there is no candidate in vcenter that meets all the required conditions, that that the cluster has available hosts in a 'green' status, not in maintenance mode and not overloaded CPU and memory'") if target_hosts.nil?
-            architectures = build_compatible_hosts_lists(target_hosts)
+            architectures = build_compatible_hosts_lists(target_hosts, percentage)
             least_used_hosts = select_least_used_hosts(target_hosts, percentage)
             least_used_hosts_list = {
               'hosts' => least_used_hosts,
