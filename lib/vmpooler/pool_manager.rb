@@ -499,7 +499,7 @@ module Vmpooler
       now = Time.now
       if $provider_hosts.key?(provider_name) and $provider_hosts[provider_name].key?(datacenter) and $provider_hosts[provider_name][datacenter].key?(cluster) and $provider_hosts[provider_name][datacenter][cluster].key?('checking')
         wait_for_host_selection(pool_name, provider_name, cluster, datacenter)
-      elsif $provider_hosts.key?(provider_name) and $provider_hosts[provider_name].key?(datacenter) and $provider_hosts[provider_name][datacenter].key?(cluster) and $provider_hosts.key?('check_time_finished')
+      elsif $provider_hosts.key?(provider_name) and $provider_hosts[provider_name].key?(datacenter) and $provider_hosts[provider_name][datacenter].key?(cluster) and $provider_hosts[provider_name][datacenter][cluster].key?('check_time_finished')
         select_hosts(pool_name, provider, provider_name, cluster, datacenter, percentage) if now - $provider_hosts[provider_name][datacenter][cluster]['check_time_finished'] > max_age
       else
         select_hosts(pool_name, provider, provider_name, cluster, datacenter, percentage)
