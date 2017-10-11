@@ -482,7 +482,7 @@ module Vmpooler
       { 'cluster' => cluster, 'datacenter' => datacenter }
     end
 
-    def select_hosts(pool_name, provider, provider_name, cluster, datacenter)
+    def select_hosts(pool_name, provider, provider_name, cluster, datacenter, percentage)
       $provider_hosts[provider_name] = {} unless $provider_hosts.key?(provider_name)
       $provider_hosts[provider_name][datacenter] = {} unless $provider_hosts[provider_name].key?(datacenter)
       $provider_hosts[provider_name][datacenter][cluster] = {} unless $provider_hosts[provider_name][datacenter].key?(cluster)
@@ -495,14 +495,14 @@ module Vmpooler
       $logger.log('d', "$provider_hosts: #{$provider_hosts}")
     end
 
-    def run_select_hosts(provider, pool_name, provider_name, cluster, datacenter, max_age = 60)
+    def run_select_hosts(provider, pool_name, provider_name, cluster, datacenter, max_age, percentage)
       now = Time.now
       if $provider_hosts.key?(provider_name) and $provider_hosts[provider_name].key?(datacenter) and $provider_hosts[provider_name][datacenter].key?(cluster) and $provider_hosts[provider_name][datacenter][cluster].key?('checking')
         wait_for_host_selection(pool_name)
       elsif $provider_hosts.key?(provider_name) and $provider_hosts[provider_name].key?(datacenter) and $provider_hosts[provider_name][datacenter].key?(cluster) and $provider_hosts.key?('check_time_finished')
-        select_hosts(pool_name, provider, provider_name, cluster, datacenter) if now - $provider_hosts[provider_name][datacenter][cluster]['check_time_finished'] > max_age
+        select_hosts(pool_name, provider, provider_name, cluster, datacenter, percentage) if now - $provider_hosts[provider_name][datacenter][cluster]['check_time_finished'] > max_age
       else
-        select_hosts(pool_name, provider, provider_name, cluster, datacenter)
+        select_hosts(pool_name, provider, provider_name, cluster, datacenter, percentage)
       end
     end
 
@@ -561,7 +561,9 @@ module Vmpooler
       migration_count = $redis.scard('vmpooler__migration')
 
       if migration_limit
-        run_select_hosts(provider, pool_name, provider_name, vm['cluster'], vm['datacenter'])
+        max_age = 60
+        percentage_of_hosts = 30
+        run_select_hosts(provider, pool_name, provider_name, vm['cluster'], vm['datacenter'], max_age, percentage_of_hosts)
         if migration_count >= migration_limit
           $logger.log('s', "[ ] [#{pool_name}] '#{vm_name}' is running on #{vm['host']}. No migration will be evaluated since the migration_limit has been reached")
         elsif $provider_hosts[provider_name][vm['datacenter']][vm['cluster']]['architectures'][vm['architecture']].include?(vm['host'])

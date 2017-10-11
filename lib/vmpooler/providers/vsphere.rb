@@ -92,8 +92,8 @@ module Vmpooler
           end
         end
 
-        def select_target_hosts(cluster, datacenter)
-          hosts_hash = find_least_used_hosts(cluster, datacenter)
+        def select_target_hosts(cluster, datacenter, percentage)
+          hosts_hash = find_least_used_hosts(cluster, datacenter, percentage)
           hosts_hash
         end
 
@@ -642,14 +642,14 @@ module Vmpooler
           least_used_hosts.sort[0..hosts_to_select].map { |host| host[1].name }
         end
 
-        def find_least_used_hosts(cluster, datacentername)
+        def find_least_used_hosts(cluster, datacentername, percentage)
           @connection_pool.with_metrics do |pool_object|
             connection = ensured_vsphere_connection(pool_object)
             cluster_object = find_cluster(cluster, connection, datacentername)
             target_hosts = get_cluster_host_utilization(cluster_object)
             raise("there is no candidate in vcenter that meets all the required conditions, that that the cluster has available hosts in a 'green' status, not in maintenance mode and not overloaded CPU and memory'") if target_hosts.nil?
             architectures = build_compatible_hosts_lists(target_hosts)
-            least_used_hosts = select_least_used_hosts(target_hosts)
+            least_used_hosts = select_least_used_hosts(target_hosts, percentage)
             least_used_hosts_list = {
               'hosts' => least_used_hosts,
               'architectures' => architectures,
