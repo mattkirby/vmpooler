@@ -563,8 +563,8 @@ module Vmpooler
 
       if migration_limit
         max_age = 60
-        percentage_of_hosts = 99
-        run_select_hosts(provider, pool_name, provider_name, vm['cluster'], vm['datacenter'], max_age, percentage_of_hosts)
+        percentage_of_hosts_below_average = 100
+        run_select_hosts(provider, pool_name, provider_name, vm['cluster'], vm['datacenter'], max_age, percentage_of_hosts_below_average)
         if migration_count >= migration_limit
           $logger.log('s', "[ ] [#{pool_name}] '#{vm_name}' is running on #{vm['host']}. No migration will be evaluated since the migration_limit has been reached")
         elsif $provider_hosts[provider_name][vm['datacenter']][vm['cluster']]['architectures'][vm['architecture']].include?(vm['host'])
