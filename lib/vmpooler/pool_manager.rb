@@ -488,7 +488,7 @@ module Vmpooler
       $provider_hosts[provider_name][datacenter][cluster] = {} unless $provider_hosts[provider_name][datacenter].key?(cluster)
       $provider_hosts[provider_name][datacenter][cluster]['checking'] = true
       $provider_hosts[provider_name][datacenter][cluster]['check_time_start'] = Time.now
-      hosts_hash = provider.select_target_hosts(cluster, datacenter)
+      hosts_hash = provider.select_target_hosts(cluster, datacenter, percentage)
       #$logger.log('d', "#{provider_name} #{datacenter} #{cluster} has targets: #{hosts_hash}")
       $provider_hosts[provider_name][datacenter][cluster] = hosts_hash
       $provider_hosts[provider_name][datacenter][cluster]['check_time_finished'] = Time.now
