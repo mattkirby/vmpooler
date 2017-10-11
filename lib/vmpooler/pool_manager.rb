@@ -564,7 +564,7 @@ module Vmpooler
         run_select_hosts(provider, pool_name, provider_name, vm['cluster'], vm['datacenter'])
         if migration_count >= migration_limit
           $logger.log('s', "[ ] [#{pool_name}] '#{vm_name}' is running on #{vm['host']}. No migration will be evaluated since the migration_limit has been reached")
-        elsif $provider_hosts[provider_name][vm['datacenter']][vm['cluster']]['all_hosts'].include?(vm['host'])
+        elsif $provider_hosts[provider_name][vm['datacenter']][vm['cluster']]['architectures'][vm['architecture']].include?(vm['host'])
           $logger.log('s', "[ ] [#{pool_name}] No migration required for '#{vm_name}' running on #{vm['host']}")
         else
           $redis.sadd('vmpooler__migration', vm_name)

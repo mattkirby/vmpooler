@@ -650,15 +650,9 @@ module Vmpooler
             raise("there is no candidate in vcenter that meets all the required conditions, that that the cluster has available hosts in a 'green' status, not in maintenance mode and not overloaded CPU and memory'") if target_hosts.nil?
             architectures = build_compatible_hosts_lists(target_hosts)
             least_used_hosts = select_least_used_hosts(target_hosts)
-            all_hosts = []
-            all_hosts = all_hosts + least_used_hosts
-            architectures.keys.each do |arch|
-              all_hosts = all_hosts + architectures[arch]
-            end
             least_used_hosts_list = {
               'hosts' => least_used_hosts,
               'architectures' => architectures,
-              'all_hosts' => all_hosts.uniq
             }
             least_used_hosts_list
           end
