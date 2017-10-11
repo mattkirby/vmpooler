@@ -634,11 +634,11 @@ module Vmpooler
           raise('Provided hosts list to select_least_used_hosts is empty') if hosts.empty?
           average_utilization = get_average_cluster_utilization(hosts)
           least_used_hosts = []
-          hosts_to_select = (hosts.count * (percentage  / 100.0)).to_int
           hosts.each do |host|
             least_used_hosts << host if host[0] <= average_utilization
           end
-          hosts_to_select = (least_used_hosts.count / 2) - 1 if hosts_to_select > least_used_hosts.count
+          hosts_to_select = hosts.count - 1 if percentage == 100
+          hosts_to_select = (hosts.count * (percentage  / 100.0)).to_int
           least_used_hosts.sort[0..hosts_to_select].map { |host| host[1].name }
         end
 
