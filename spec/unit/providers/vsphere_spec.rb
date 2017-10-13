@@ -161,72 +161,6 @@ EOT
     end
   end
 
-  describe '#get_vm_host' do
-    before(:each) do
-      allow(subject).to receive(:connect_to_vsphere).and_return(connection)
-      expect(subject).to receive(:find_vm).with(vmname,connection).and_return(vm_object)
-    end
-
-    context 'when VM does not exist' do
-      let(:vm_object) { nil }
-
-      it 'should get a connection' do
-        expect(subject).to receive(:connect_to_vsphere).and_return(connection)
-
-        subject.get_vm_host(poolname,vmname)
-      end
-
-      it 'should return nil' do
-        expect(subject.get_vm_host(poolname,vmname)).to be_nil
-      end
-    end
-
-    context 'when VM exists but missing runtime information' do
-      # For example if the VM is shutdown
-      let(:vm_object) { mock_RbVmomi_VIM_VirtualMachine({
-          :name => vmname,
-        })
-      }
-
-      before(:each) do
-        vm_object.summary.runtime = nil
-      end
-
-      it 'should get a connection' do
-        expect(subject).to receive(:connect_to_vsphere).and_return(connection)
-
-        subject.get_vm_host(poolname,vmname)
-      end
-
-      it 'should return nil' do
-        expect(subject.get_vm_host(poolname,vmname)).to be_nil
-      end
-    end
-
-    context 'when VM exists and is running on a host' do
-      let(:vm_object) { mock_RbVmomi_VIM_VirtualMachine({
-          :name => vmname,
-        })
-      }
-      let(:hostname) { 'HOST001' }
-
-      before(:each) do
-        mock_host = mock_RbVmomi_VIM_HostSystem({ :name => hostname })
-        vm_object.summary.runtime.host = mock_host
-      end
-
-      it 'should get a connection' do
-        expect(subject).to receive(:connect_to_vsphere).and_return(connection)
-
-        subject.get_vm_host(poolname,vmname)
-      end
-
-      it 'should return the hostname' do
-        expect(subject.get_vm_host(poolname,vmname)).to eq(hostname)
-      end
-    end
-  end
-
   describe '#migrate_vm_to_host' do
     let(:dest_host_name) { 'HOST002' }
     let(:cluster_name) { 'CLUSTER001' }
@@ -2104,6 +2038,7 @@ EOT
     let(:cluster_name) { 'cluster' }
     let(:missing_cluster_name) { 'missing_cluster' }
     let(:datacenter_object) { mock_RbVmomi_VIM_Datacenter() }
+    let(:percentage) { 100 }
 
     before(:each) do
       # This mocking is a little fragile but hard to do without a real vCenter instance
@@ -2123,7 +2058,7 @@ EOT
       let(:expected_host) { cluster_object.host[0] }
 #,datacenter_name
       it 'should raise an error' do
-        expect{subject.find_least_used_hosts(missing_cluster_name,datacenter_name)}.to raise_error(NoMethodError,/undefined method/)
+        expect{subject.find_least_used_hosts(missing_cluster_name,datacenter_name,percentage)}.to raise_error(NoMethodError,/undefined method/)
       end
     end
 
@@ -2136,7 +2071,7 @@ EOT
       let(:expected_host) { cluster_object.host[0][:name] }
 
       it 'should return the standalone host' do
-        result = subject.find_least_used_hosts(cluster_name,datacenter_name)
+        result = subject.find_least_used_hosts(cluster_name,datacenter_name,percentage)
 
         expect(result['hosts'][0]).to be(expected_host)
       end
@@ -2152,7 +2087,7 @@ EOT
       let(:expected_host) { cluster_object.host[0] }
 
       it 'should raise an error' do
-        expect{subject.find_least_used_hosts(missing_cluster_name,datacenter_name)}.to raise_error(NoMethodError,/undefined method/)
+        expect{subject.find_least_used_hosts(missing_cluster_name,datacenter_name,percentage)}.to raise_error(NoMethodError,/undefined method/)
       end
     end
 
@@ -2167,7 +2102,7 @@ EOT
       let(:expected_host) { cluster_object.host[1].name }
 
       it 'should return the standalone host' do
-        result = subject.find_least_used_hosts(cluster_name,datacenter_name)
+        result = subject.find_least_used_hosts(cluster_name,datacenter_name,percentage)
 
         expect(result['hosts'][0]).to be(expected_host)
       end
@@ -2184,7 +2119,7 @@ EOT
       let(:expected_host) { cluster_object.host[1] }
 
       it 'should raise an error' do
-        expect{subject.find_least_used_hosts(missing_cluster_name,datacenter_name)}.to raise_error(NoMethodError,/undefined method/)
+        expect{subject.find_least_used_hosts(missing_cluster_name,datacenter_name,percentage)}.to raise_error(NoMethodError,/undefined method/)
       end
     end
 
@@ -2201,7 +2136,7 @@ EOT
       let(:expected_host) { cluster_object.host[1].name }
 
       it 'should return the standalone host' do
-        result = subject.find_least_used_hosts(cluster_name,datacenter_name)
+        result = subject.find_least_used_hosts(cluster_name,datacenter_name,percentage)
 
         expect(result['hosts'][0]).to be(expected_host)
       end
@@ -2219,7 +2154,7 @@ EOT
 
       it 'should return a host' do
         pending('https://github.com/puppetlabs/vmpooler/issues/206')
-        result = subject.find_least_used_hosts(missing_cluster_name,datacenter_name)
+        result = subject.find_least_used_hosts(missing_cluster_name,datacenter_name,percentage)
         expect(result).to_not be_nil
       end
     end

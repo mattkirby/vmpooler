@@ -465,7 +465,7 @@ module Vmpooler
     def get_provider_name(pool_name, config = $config)
       pool = config[:pools].select { |p| p['name'] == pool_name }[0]
       provider_name = pool['provider'] if pool.key?('provider')
-      provider_name = pool['providers'].first[0].to_s if provider_name.nil?
+      provider_name = config[:providers].first[0].to_s if provider_name.nil? and config.key?(:providers)
       provider_name = 'default' if provider_name.nil?
       provider_name
     end
@@ -488,7 +488,6 @@ module Vmpooler
       $provider_hosts[provider_name][datacenter] = {} unless $provider_hosts[provider_name].key?(datacenter)
       $provider_hosts[provider_name][datacenter][cluster] = {} unless $provider_hosts[provider_name][datacenter].key?(cluster)
       $provider_hosts[provider_name][datacenter][cluster]['checking'] = true
-      $provider_hosts[provider_name][datacenter][cluster]['check_time_start'] = Time.now
       hosts_hash = provider.select_target_hosts(cluster, datacenter, percentage)
       $provider_hosts[provider_name][datacenter][cluster] = hosts_hash
       $provider_hosts[provider_name][datacenter][cluster]['check_time_finished'] = Time.now
@@ -507,14 +506,14 @@ module Vmpooler
 
     def wait_for_host_selection(pool_name, provider_name, cluster, datacenter, maxloop = 0, loop_delay = 5, max_age = 60)
       loop_count = 1
-      while $provider_hosts[provider_name][datacenter][cluster].has_key?('check_time_finished') == false
+      until $provider_hosts[provider_name][datacenter][cluster].key?('check_time_finished')
         sleep(loop_delay)
         unless maxloop.zero?
           break if loop_count >= maxloop
           loop_count += 1
         end
       end
-      return unless $provider_hosts[provider_name][datacenter][cluster].has_key?('check_time_finished')
+      return unless $provider_hosts[provider_name][datacenter][cluster].key?('check_time_finished')
       loop_count = 1
       while Time.now - $provider_hosts[provider_name][datacenter][cluster]['check_time_finished'] > max_age
         sleep(loop_delay)
@@ -551,7 +550,7 @@ module Vmpooler
       end
     end
 
-    def _migrate_vm(vm_name, pool_name, provider, target_hash = $provider_hosts)
+    def _migrate_vm(vm_name, pool_name, provider)
       $redis.srem("vmpooler__migrating__#{pool_name}", vm_name)
 
       provider_name = get_provider_name(pool_name)
