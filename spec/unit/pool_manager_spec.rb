@@ -1882,7 +1882,7 @@ EOT
     end
 
     it 'calls _migrate_vm' do
-      expect(subject).to receive(:_migrate_vm).with(vm, pool, provider, $provider_hosts)
+      expect(subject).to receive(:_migrate_vm).with(vm, pool, provider)
 
       subject.migrate_vm(vm, pool, provider)
     end
@@ -1902,7 +1902,7 @@ EOT
 
     context 'When an error is raised' do
       before(:each) do
-        expect(subject).to receive(:_migrate_vm).with(vm, pool, provider, $provider_hosts).and_raise('MockError')
+        expect(subject).to receive(:_migrate_vm).with(vm, pool, provider).and_raise('MockError')
       end
 
       it 'logs a message' do
