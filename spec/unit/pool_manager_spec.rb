@@ -1476,71 +1476,125 @@ EOT
   end
 
 
-  describe '#get_clusters' do
-
-    context 'with a single cluster configured' do
+  describe '#get_provider_name' do
+    context 'with a single provider and no pool specified provider' do
       let(:config) {
         YAML.load(<<-EOT
 ---
-:config:
-  task_limit: 10
-  clone_target: 'cluster1'
+:providers:
+  :vc1:
+    server: 'server1'
 :pools:
   - name: #{pool}
-    size: 10
 EOT
         )
       }
-      let(:clusters) { ['cluster1'] }
-
-      it 'should return clusters configured' do
-        expect(subject).to receive(:get_clusters).with(config).and_return(clusters)
-        subject.get_clusters(config)
+      it 'returns the name of the configured provider' do
+        expect(subject.get_provider_name(pool, config)).to eq('vc1')
       end
     end
 
-    context 'with clusters specified more than once' do
+    context 'with no providers configured' do
       let(:config) {
         YAML.load(<<-EOT
 ---
-:config:
-  task_limit: 10
-  clone_target: 'cluster1'
 :pools:
   - name: #{pool}
-    size: 10
-    clone_target: 'cluster1'
-  - name: #{pool}2
-    size: 10
-    clone_target: 'cluster2'
 EOT
         )
       }
-      let(:clusters) { ['cluster1', 'cluster2'] }
 
-      it 'should not return duplicates when a cluster is specified more than once' do
-        expect(subject).to receive(:get_clusters).with(config).and_return(clusters)
-        subject.get_clusters(config)
+      it 'should return default' do
+        expect(subject.get_provider_name(pool, config)).to eq('default')
       end
     end
 
-    context 'with no clone_target configured' do
+    context 'with a provider configured for the pool' do
       let(:config) {
         YAML.load(<<-EOT
 ---
-:config:
-  task_limit: 10
+:providers:
+  :vc1:
+    server: 'server1'
+  :vc2:
+    server: 'server2'
+:pools:
+  - name: #{pool}
+    provider: 'vc2'
 EOT
         )
       }
 
-      it 'should return nil when no clusters are configured' do
-        expect(subject).to receive(:get_clusters).with(config).and_return(nil)
-
-        subject.get_clusters(config)
+      it 'should return the configured provider name' do
+        expect(subject.get_provider_name(pool, config)).to eq('vc2')
       end
     end
   end
+
+
+  describe '#get_cluster' do
+    let(:cluster) { 'cluster1' }
+    let(:datacenter) { 'dc1' }
+    let(:cluster_dc) { { 'cluster' => cluster, 'datacenter' => datacenter } }
+
+    context 'defaults configured' do
+      let(:config) {
+        YAML.load(<<-EOT
+---
+:config:
+  clone_target: 'cluster1'
+  datacenter: 'dc1'
+:pools:
+  - name: #{pool}
+EOT
+        )
+      }
+
+      it 'should return the default cluster and dc' do
+        expect(subject.get_cluster(pool)).to eq(cluster_dc)
+      end
+    end
+
+    context 'with clone_target specified for pool' do
+      let(:config) {
+        YAML.load(<<-EOT
+---
+:config:
+  datacenter: 'dc1'
+:pools:
+  - name: #{pool}
+    clone_target: 'cluster1'
+EOT
+        )
+      }
+
+      it 'should return the configured cluster and dc' do
+        expect(subject.get_cluster(pool)).to eq(cluster_dc)
+      end
+    end
+
+    context 'with clone_target and datacenter specified for pool' do
+      let(:config) {
+        YAML.load(<<-EOT
+---
+:config:
+  task_limit: 10
+:pools:
+  - name: #{pool}
+    clone_target: 'cluster1'
+    datacenter: 'dc1'
+EOT
+        )
+      }
+      before(:each) do
+        $config = config
+      end
+      it 'should return the configured cluster and dc' do
+        expect(subject.get_cluster(pool)).to eq(cluster_dc)
+      end
+    end
+  end
+
 
   describe '#select_hosts' do
 
@@ -1753,52 +1807,46 @@ EOT
   describe '#select_next_host' do
 
     let(:hosts_hash) { }
-    let(:cluster_name) { 'cluster1' }
+    let(:cluster) { 'cluster1' }
     let(:architecture) { 'v3' }
     let(:target_host) { 'host1' }
-
-    context 'with a list of hosts available' do
-      let(:provider_hosts) {
-        {
-          'check_time_finished' => Time.now,
-          'clusters' => {
-            'cluster1' => {
-              'architectures' => { 'v3' => ['host1', 'host2'] }
+    let(:provider_name) { 'default' }
+    let(:datacenter) { 'dc1' }
+    let(:provider_hosts) {
+      {
+        provider_name => {
+          datacenter => {
+            cluster => {
+              'check_time_finished' => Time.now,
+              'architectures' => { architecture => ['host1', 'host2'] }
             }
           }
         }
       }
+    }
+    before(:each) do
+      expect(subject).not_to be_nil
+      $provider_hosts = provider_hosts
+    end
 
-      before(:each) do
-        $provider_hosts = provider_hosts
-      end
+    context 'with a list of hosts available' do
 
       it 'returns the first host from the target cluster and architecture list' do
-        expect(subject).to receive(:select_next_host)
-
-        subject.select_next_host(cluster_name, architecture, provider_hosts)
+        expect(subject.select_next_host(provider_name, datacenter, cluster, architecture)).to eq(target_host)
       end
 
-      it 'appends the selected host to the end of target_hash' do
-        expect(subject).to receive(:select_next_host).and_return(target_host)
-
-        subject.select_next_host(cluster_name, architecture, provider_hosts)
+      it 'return the second host on the second call to select_next_host' do
+        expect(subject.select_next_host(provider_name, datacenter, cluster, architecture)).to eq(target_host)
+        expect(subject.select_next_host(provider_name, datacenter, cluster, architecture)).to eq('host2')
       end
     end
 
     context 'with no hosts available' do
-      let(:provider_hosts) {
-        {
-          'check_time_finished' => Time.now,
-          'clusters' => {
-            'cluster1' => { 'architectures' => { 'v3' => [ ] } }
-          }
-        }
-      }
-      it 'returns when host is nil' do
-        expect(subject).to receive(:select_next_host).and_return(nil)
-
-        subject.select_next_host(cluster_name, architecture, provider_hosts)
+      before(:each) do
+        $provider_hosts[provider_name][datacenter][cluster]['architectures'][architecture] = []
+      end
+      it 'returns nil' do
+        expect(subject.select_next_host(provider_name, datacenter, cluster, architecture)).to be_nil
       end
     end
 
