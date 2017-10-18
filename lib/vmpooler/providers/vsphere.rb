@@ -64,17 +64,80 @@ module Vmpooler
             vm_object = find_vm(vm_name, connection)
             return nil if vm_object.nil?
             parent_host = vm_object.summary.runtime.host if vm_object.summary && vm_object.summary.runtime && vm_object.summary.runtime.host
+            raise('Unable to determine which host the VM is running on') if parent_host.nil?
             vm_hash['host'] = parent_host.name
             vm_hash['architecture'] = get_host_cpu_arch_version(parent_host)
-            vm_hash['cluster'] = parent_host.parent.name
-            vm_hash['datacenter'] = parent_host.parent.parent.parent.name
           end
           vm_hash
         end
 
-        def select_target_hosts(cluster, datacenter, percentage)
-          hosts_hash = find_least_used_hosts(cluster, datacenter, percentage)
-          hosts_hash
+        def select_target_hosts(target, cluster, datacenter)
+          dc = "#{datacenter}_#{cluster}"
+          target[dc] = {} unless target.key?(dc)
+          target[dc]['checking'] = true
+          hosts_hash = find_least_used_hosts(cluster, datacenter, 100)
+          target[dc] = hosts_hash
+          target[dc]['check_time_finished'] = Time.now
+        end
+
+        def run_select_hosts(pool_name, target)
+          now = Time.now
+          max_age = 60
+          datacenter = get_target_datacenter_from_config(pool_name)
+          cluster = get_target_cluster_from_config(pool_name)
+          raise("cluster for pool #{pool_name} cannot be identified") if cluster.nil?
+          raise("datacenter for pool #{pool_name} cannot be identified") if datacenter.nil?
+          dc = "#{datacenter}_#{cluster}"
+          if target.key?(dc) and target[dc].key?('checking')
+            wait_for_host_selection(dc, target)
+          elsif target.key?(dc) and target[dc].key?('check_time_finished')
+            select_target_hosts(target, cluster, datacenter) if now - target[dc]['check_time_finished'] > max_age
+          else
+            select_target_hosts(target, cluster, datacenter)
+          end
+        end
+
+        def wait_for_host_selection(dc, target, maxloop = 0, loop_delay = 5, max_age = 60)
+          loop_count = 1
+          until target.key?(dc) and target[dc].key?('check_time_finished')
+            sleep(loop_delay)
+            unless maxloop.zero?
+              break if loop_count >= maxloop
+              loop_count += 1
+            end
+          end
+          return unless target[dc].key?('check_time_finished')
+          loop_count = 1
+          while Time.now - target[dc]['check_time_finished'] > max_age
+            sleep(loop_delay)
+            unless maxloop.zero?
+              break if loop_count >= maxloop
+              loop_count += 1
+            end
+          end
+        end
+
+        def select_next_host(pool_name, architecture, target)
+          datacenter = get_target_datacenter_from_config(pool_name)
+          cluster = get_target_cluster_from_config(pool_name)
+          raise("cluster for pool #{pool_name} cannot be identified") if cluster.nil?
+          raise("datacenter for pool #{pool_name} cannot be identified") if datacenter.nil?
+          dc = "#{datacenter}_#{cluster}"
+          raise("no target hosts are available for #{pool_name} configured with datacenter #{datacenter} and cluster #{cluster}") if target[dc]['architectures'][architecture].size == 0
+          host = target[dc]['architectures'][architecture][0]
+          target[dc]['architectures'][architecture].delete(host)
+          target[dc]['architectures'][architecture] << host
+          host
+        end
+
+        def vm_in_target?(pool_name, parent_host, architecture, target)
+          datacenter = get_target_datacenter_from_config(pool_name)
+          cluster = get_target_cluster_from_config(pool_name)
+          raise("cluster for pool #{pool_name} cannot be identified") if cluster.nil?
+          raise("datacenter for pool #{pool_name} cannot be identified") if datacenter.nil?
+          dc = "#{datacenter}_#{cluster}"
+          return true if target[dc]['architectures'][architecture].include?(parent_host)
+          return false
         end
 
         def migrate_vm_to_host(pool_name, vm_name, dest_host_name)
@@ -177,18 +240,15 @@ module Vmpooler
             begin
               vm_target_folder = find_folder(target_folder_path, connection, target_datacenter_name)
             rescue => _err
-              if _err =~ /Unexpected object type encountered/
-                vm_target_folder = nil
-              else
-                raise(_err)
-              end
-            end
-            if vm_target_folder.nil?
+              #if _err =~ /Unexpected object type encountered/
               if $config[:config]['create_folders'] == true
                 dc = connection.serviceInstance.find_datacenter(target_datacenter_name)
                 vm_target_folder = dc.vmFolder.traverse(target_folder_path, type=RbVmomi::VIM::Folder, create=true)
+                if vm_target_folder.nil?
+                  raise(_err)
+                end
               else
-                raise("Unexpected object type encountered while finding folder")
+                raise(_err)
               end
             end
 

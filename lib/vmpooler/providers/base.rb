@@ -11,12 +11,15 @@ module Vmpooler
         attr_reader :metrics
         # Provider options passed in during initialization
         attr_reader :provider_options
+        # Hash for tracking hosts for deployment
+        attr_reader :provider_hosts
 
         def initialize(config, logger, metrics, name, options)
           @config = config
           @logger = logger
           @metrics = metrics
           @provider_name = name
+          @provider_hosts = {}
 
           # Ensure that there is not a nil provider configuration
           @config[:providers] = {} if @config[:providers].nil?
