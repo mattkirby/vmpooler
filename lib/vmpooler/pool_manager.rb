@@ -23,7 +23,7 @@ module Vmpooler
       $threads = {}
 
       # Host tracking object
-      $provider_hosts = {}
+      @provider_hosts = {}
     end
 
     def config
@@ -461,77 +461,6 @@ module Vmpooler
       end
     end
 
-    def get_provider_name(pool_name, config = $config)
-      pool = config[:pools].select { |p| p['name'] == pool_name }[0]
-      provider_name = pool['provider'] if pool.key?('provider')
-      provider_name = config[:providers].first[0].to_s if provider_name.nil? and config.key?(:providers)
-      provider_name = 'default' if provider_name.nil?
-      provider_name
-    end
-
-    def get_cluster(pool_name)
-      default_cluster = $config[:config]['clone_target'] if $config[:config].key?('clone_target')
-      default_datacenter = $config[:config]['datacenter'] if $config[:config].key?('datacenter')
-      pool = $config[:pools].select { |p| p['name'] == pool_name }[0]
-      cluster = pool['clone_target'] if pool.key?('clone_target')
-      cluster = default_cluster if cluster.nil?
-      datacenter = pool['datacenter'] if pool.key?('datacenter')
-      datacenter = default_datacenter if datacenter.nil?
-      return if cluster.nil?
-      return if datacenter.nil?
-      { 'cluster' => cluster, 'datacenter' => datacenter }
-    end
-
-    def select_hosts(pool_name, provider, provider_name, cluster, datacenter, percentage)
-      $provider_hosts[provider_name] = {} unless $provider_hosts.key?(provider_name)
-      $provider_hosts[provider_name][datacenter] = {} unless $provider_hosts[provider_name].key?(datacenter)
-      $provider_hosts[provider_name][datacenter][cluster] = {} unless $provider_hosts[provider_name][datacenter].key?(cluster)
-      $provider_hosts[provider_name][datacenter][cluster]['checking'] = true
-      hosts_hash = provider.select_target_hosts(cluster, datacenter, percentage)
-      $provider_hosts[provider_name][datacenter][cluster] = hosts_hash
-      $provider_hosts[provider_name][datacenter][cluster]['check_time_finished'] = Time.now
-    end
-
-    def run_select_hosts(provider, pool_name, provider_name, cluster, datacenter, max_age, percentage)
-      now = Time.now
-      if $provider_hosts.key?(provider_name) and $provider_hosts[provider_name].key?(datacenter) and $provider_hosts[provider_name][datacenter].key?(cluster) and $provider_hosts[provider_name][datacenter][cluster].key?('checking')
-        wait_for_host_selection(pool_name, provider_name, cluster, datacenter)
-      elsif $provider_hosts.key?(provider_name) and $provider_hosts[provider_name].key?(datacenter) and $provider_hosts[provider_name][datacenter].key?(cluster) and $provider_hosts[provider_name][datacenter][cluster].key?('check_time_finished')
-        select_hosts(pool_name, provider, provider_name, cluster, datacenter, percentage) if now - $provider_hosts[provider_name][datacenter][cluster]['check_time_finished'] > max_age
-      else
-        select_hosts(pool_name, provider, provider_name, cluster, datacenter, percentage)
-      end
-    end
-
-    def wait_for_host_selection(pool_name, provider_name, cluster, datacenter, maxloop = 0, loop_delay = 5, max_age = 60)
-      loop_count = 1
-      until $provider_hosts[provider_name][datacenter][cluster].key?('check_time_finished')
-        sleep(loop_delay)
-        unless maxloop.zero?
-          break if loop_count >= maxloop
-          loop_count += 1
-        end
-      end
-      return unless $provider_hosts[provider_name][datacenter][cluster].key?('check_time_finished')
-      loop_count = 1
-      while Time.now - $provider_hosts[provider_name][datacenter][cluster]['check_time_finished'] > max_age
-        sleep(loop_delay)
-        unless maxloop.zero?
-          break if loop_count >= maxloop
-          loop_count += 1
-        end
-      end
-    end
-
-    def select_next_host(provider_name, datacenter, cluster, architecture)
-      provider_hosts = $provider_hosts
-      host = provider_hosts[provider_name][datacenter][cluster]['architectures'][architecture][0]
-      return if host.nil?
-      provider_hosts[provider_name][datacenter][cluster]['architectures'][architecture].delete(host)
-      provider_hosts[provider_name][datacenter][cluster]['architectures'][architecture] << host
-      host
-    end
-
     def migration_limit(migration_limit)
       # Returns migration_limit setting when enabled
       return false if migration_limit == 0 || !migration_limit # rubocop:disable Style/NumericPredicate
@@ -552,23 +481,23 @@ module Vmpooler
     def _migrate_vm(vm_name, pool_name, provider)
       $redis.srem("vmpooler__migrating__#{pool_name}", vm_name)
 
-      provider_name = get_provider_name(pool_name)
       vm = provider.get_vm_details(pool_name, vm_name)
-      raise('Unable to determine which host the VM is running on') if vm['host'].nil?
+      raise('Unable to determine which host the VM is running on') if vm.nil? or vm['host'].nil?
       migration_limit = migration_limit $config[:config]['migration_limit']
       migration_count = $redis.scard('vmpooler__migration')
 
       if migration_limit
-        max_age = 60
-        percentage_of_hosts_below_average = 100
-        run_select_hosts(provider, pool_name, provider_name, vm['cluster'], vm['datacenter'], max_age, percentage_of_hosts_below_average)
         if migration_count >= migration_limit
           $logger.log('s', "[ ] [#{pool_name}] '#{vm_name}' is running on #{vm['host']}. No migration will be evaluated since the migration_limit has been reached")
-        elsif $provider_hosts[provider_name][vm['datacenter']][vm['cluster']]['architectures'][vm['architecture']].include?(vm['host'])
+          return
+        end
+        provider.run_select_hosts(pool_name, @provider_hosts)
+        #$logger.log('s', "Provider hosts is: #{@provider_hosts}")
+        if provider.vm_in_target?(pool_name, vm['host'], vm['architecture'], @provider_hosts)
           $logger.log('s', "[ ] [#{pool_name}] No migration required for '#{vm_name}' running on #{vm['host']}")
         else
           $redis.sadd('vmpooler__migration', vm_name)
-          target_host_name = select_next_host(provider_name, vm['datacenter'], vm['cluster'], vm['architecture'])
+          target_host_name = provider.select_next_host(pool_name, vm['architecture'], @provider_hosts)
           finish = migrate_vm_and_record_timing(vm_name, pool_name, vm['host'], target_host_name, provider)
           $logger.log('s', "[>] [#{pool_name}] '#{vm_name}' migrated from #{vm['host']} to #{target_host_name} in #{finish} seconds")
           remove_vmpooler_migration_vm(pool_name, vm_name)
