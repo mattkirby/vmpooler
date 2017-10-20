@@ -253,6 +253,8 @@ module Vmpooler
               end
             end
 
+            logger.log('s', "Folder is #{vm_target_folder}")
+
             # Create the new VM
             new_vm_object = template_vm_object.CloneVM_Task(
               folder: vm_target_folder,
