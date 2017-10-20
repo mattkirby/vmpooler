@@ -481,7 +481,6 @@ module Vmpooler
 
     def _migrate_vm(vm_name, pool_name, provider)
       $redis.srem("vmpooler__migrating__#{pool_name}", vm_name)
-      $logger.log('s', "Provider is: #{provider}")
 
       vm = provider.get_vm_details(pool_name, vm_name)
       raise('Unable to determine which host the VM is running on') if vm.nil? or vm['host'].nil?
