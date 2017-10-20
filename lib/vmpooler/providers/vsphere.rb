@@ -64,7 +64,7 @@ module Vmpooler
             vm_object = find_vm(vm_name, connection)
             return nil if vm_object.nil?
             parent_host = vm_object.summary.runtime.host if vm_object.summary && vm_object.summary.runtime && vm_object.summary.runtime.host
-            raise('Unable to determine which host the VM is running on') if parent_host_name.nil?
+            raise('Unable to determine which host the VM is running on') if parent_host.nil?
             vm_hash['host'] = parent_host.name
             vm_hash['architecture'] = get_host_cpu_arch_version(parent_host)
           end
@@ -239,22 +239,18 @@ module Vmpooler
 
             begin
               vm_target_folder = find_folder(target_folder_path, connection, target_datacenter_name)
-              logger.log('s', "Failed to create folder: #{target_folder_path}")
             rescue => _err
               #if _err =~ /Unexpected object type encountered/
               if $config[:config]['create_folders'] == true
                 dc = connection.serviceInstance.find_datacenter(target_datacenter_name)
                 vm_target_folder = dc.vmFolder.traverse(target_folder_path, type=RbVmomi::VIM::Folder, create=true)
                 if vm_target_folder.nil?
-                  logger.log('s', "Failed to create folder: #{target_folder_path}")
                   raise(_err)
                 end
               else
                 raise(_err)
               end
             end
-
-            logger.log('s', "Folder is #{vm_target_folder}")
 
             # Create the new VM
             new_vm_object = template_vm_object.CloneVM_Task(
