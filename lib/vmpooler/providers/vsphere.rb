@@ -239,6 +239,7 @@ module Vmpooler
 
             begin
               vm_target_folder = find_folder(target_folder_path, connection, target_datacenter_name)
+              logger.log('s', "Failed to create folder: #{target_folder_path}")
             rescue => _err
               #if _err =~ /Unexpected object type encountered/
               if $config[:config]['create_folders'] == true
