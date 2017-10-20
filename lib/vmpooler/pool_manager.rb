@@ -493,7 +493,7 @@ module Vmpooler
           return
         end
         provider.run_select_hosts(pool_name, @provider_hosts)
-        #$logger.log('s', "Provider hosts is: #{@provider_hosts}")
+        $logger.log('s', "Provider hosts is: #{@provider_hosts}")
         if provider.vm_in_target?(pool_name, vm['host'], vm['architecture'], @provider_hosts)
           $logger.log('s', "[ ] [#{pool_name}] No migration required for '#{vm_name}' running on #{vm['host']}")
         else
