@@ -21,9 +21,6 @@ module Vmpooler
 
       # Our thread-tracker object
       $threads = {}
-
-      # Host tracking object
-      @provider_hosts = {}
     end
 
     def config
