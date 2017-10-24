@@ -18,9 +18,6 @@ module Vmpooler
           @metrics = metrics
           @provider_name = name
           @provider_hosts = {}
-          class << self
-            attr_accessor :variable
-          end
 
           # Ensure that there is not a nil provider configuration
           @config[:providers] = {} if @config[:providers].nil?
