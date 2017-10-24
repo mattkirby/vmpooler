@@ -4,6 +4,7 @@ module Vmpooler
       class VSphere < Vmpooler::PoolManager::Provider::Base
         # The connection_pool method is normally used only for testing
         attr_reader :connection_pool
+        attr_reader :provider_hosts
 
         def initialize(config, logger, metrics, name, options)
           super(config, logger, metrics, name, options)
