@@ -499,7 +499,6 @@ module Vmpooler
           $logger.log('s', "[>] [#{pool_name}] '#{vm_name}' migrated from #{vm['host']} to #{target_host_name} in #{finish} seconds")
           remove_vmpooler_migration_vm(pool_name, vm_name)
         end
-          return
       else
         $logger.log('s', "[ ] [#{pool_name}] '#{vm_name}' is running on #{vm['host']}")
       end
