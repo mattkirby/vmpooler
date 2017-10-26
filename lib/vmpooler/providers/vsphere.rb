@@ -138,7 +138,7 @@ module Vmpooler
             target[dc]['hosts'] << host
             target[dc]['architectures'].each do |arch|
               if arch.include?(host)
-                target[dc]['architectures'][arch] = arch.partition { |v| v != host }
+                target[dc]['architectures'][arch] = arch.partition { |v| v != host }.flatten
               end
             end
             return host
