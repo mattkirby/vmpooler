@@ -117,17 +117,25 @@ module Vmpooler
           end
         end
 
-        def select_next_host(pool_name, architecture, target)
+        def select_next_host(pool_name, target, architecture = nil)
           datacenter = get_target_datacenter_from_config(pool_name)
           cluster = get_target_cluster_from_config(pool_name)
           raise("cluster for pool #{pool_name} cannot be identified") if cluster.nil?
           raise("datacenter for pool #{pool_name} cannot be identified") if datacenter.nil?
           dc = "#{datacenter}_#{cluster}"
-          raise("no target hosts are available for #{pool_name} configured with datacenter #{datacenter} and cluster #{cluster}") if target[dc]['architectures'][architecture].size == 0
-          host = target[dc]['architectures'][architecture][0]
-          target[dc]['architectures'][architecture].delete(host)
-          target[dc]['architectures'][architecture] << host
-          host
+          if architecture
+            raise("no target hosts are available for #{pool_name} configured with datacenter #{datacenter} and cluster #{cluster}") if target[dc]['architectures'][architecture].size == 0
+            host = target[dc]['architectures'][architecture][0]
+            target[dc]['architectures'][architecture].delete(host)
+            target[dc]['architectures'][architecture] << host
+            return host
+          else
+            raise("no target hosts are available for #{pool_name} configured with datacenter #{datacenter} and cluster #{cluster}") if target[dc]['hosts'].size == 0
+            host = target[dc]['hosts'][0]
+            target[dc]['hosts'].delete(host)
+            target[dc]['hosts'] << host
+            return host
+          end
         end
 
         def vm_in_target?(pool_name, parent_host, architecture, target)
@@ -219,15 +227,22 @@ module Vmpooler
               ]
             )
 
-            # Choose a cluster/host to place the new VM on
-            target_cluster_object = find_cluster(target_cluster_name, connection, target_datacenter_name)
-
             # Put the VM in the specified folder and resource pool
             relocate_spec = RbVmomi::VIM.VirtualMachineRelocateSpec(
               datastore: find_datastore(target_datastore, connection, target_datacenter_name),
-              pool: target_cluster_object.resourcePool,
               diskMoveType: :moveChildMostDiskBacking
             )
+
+            manage_host_selection = $config[:config]['manage_host_selection'] if $config[:config].key?('manage_host_selection')
+            if manage_host_selection
+              run_select_hosts(pool_name, @provider_hosts)
+              target_host = select_next_host(pool_name, @provider_hosts)
+              relocate_spec.host = target_host
+            else
+            # Choose a cluster/host to place the new VM on
+              target_cluster_object = find_cluster(target_cluster_name, connection, target_datacenter_name)
+              relocate_spec.pool = target_cluster_object.resourcePool
+            end
 
             # Create a clone spec
             clone_spec = RbVmomi::VIM.VirtualMachineCloneSpec(
