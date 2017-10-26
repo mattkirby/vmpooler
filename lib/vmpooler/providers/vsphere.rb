@@ -125,15 +125,22 @@ module Vmpooler
           dc = "#{datacenter}_#{cluster}"
           if architecture
             raise("no target hosts are available for #{pool_name} configured with datacenter #{datacenter} and cluster #{cluster}") if target[dc]['architectures'][architecture].size == 0
-            host = target[dc]['architectures'][architecture][0]
-            target[dc]['architectures'][architecture].delete(host)
+            host = target[dc]['architectures'][architecture].shift
             target[dc]['architectures'][architecture] << host
+            if target[dc]['hosts'].include?(host)
+              target[dc]['hosts'].delete(host)
+              target[dc]['hosts'] << host
+            end
             return host
           else
             raise("no target hosts are available for #{pool_name} configured with datacenter #{datacenter} and cluster #{cluster}") if target[dc]['hosts'].size == 0
-            host = target[dc]['hosts'][0]
-            target[dc]['hosts'].delete(host)
+            host = target[dc]['hosts'].shift
             target[dc]['hosts'] << host
+            target[dc]['architectures'].each do |arch|
+              if arch.include?(host)
+                target[dc]['architectures'][arch] = arch.partition { |v| v != host }
+              end
+            end
             return host
           end
         end
