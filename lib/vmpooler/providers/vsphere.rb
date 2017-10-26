@@ -244,7 +244,8 @@ module Vmpooler
             if manage_host_selection
               run_select_hosts(pool_name, @provider_hosts)
               target_host = select_next_host(pool_name, @provider_hosts)
-              relocate_spec.host = target_host
+              host_object = find_host_by_dnsname(connection, target_host)
+              relocate_spec.host = host_object
             else
             # Choose a cluster/host to place the new VM on
               target_cluster_object = find_cluster(target_cluster_name, connection, target_datacenter_name)
