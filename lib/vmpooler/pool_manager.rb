@@ -495,6 +495,7 @@ module Vmpooler
           $redis.sadd('vmpooler__migration', vm_name)
           target_host_name = provider.select_next_host(pool_name, provider.provider_hosts, vm['architecture'])
           finish = migrate_vm_and_record_timing(vm_name, pool_name, vm['host'], target_host_name, provider)
+          $logger.log('s', "Provider_hosts is: #{provider.provider_hosts}")
           $logger.log('s', "[>] [#{pool_name}] '#{vm_name}' migrated from #{vm['host']} to #{target_host_name} in #{finish} seconds")
           remove_vmpooler_migration_vm(pool_name, vm_name)
         end
