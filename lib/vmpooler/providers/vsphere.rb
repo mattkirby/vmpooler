@@ -155,23 +155,6 @@ module Vmpooler
           return false
         end
 
-        def migrate_vm_to_host(pool_name, vm_name, dest_host_name)
-          pool = pool_config(pool_name)
-          raise("Pool #{pool_name} does not exist for the provider #{name}") if pool.nil?
-
-          @connection_pool.with_metrics do |pool_object|
-            connection = ensured_vsphere_connection(pool_object)
-            vm_object = find_vm(vm_name, connection)
-            raise("VM #{vm_name} does not exist in Pool #{pool_name} for the provider #{name}") if vm_object.nil?
-
-            target_host_object = find_host_by_dnsname(connection, dest_host_name)
-            raise("Pool #{pool_name} specifies host #{dest_host_name} which can not be found by the provider #{name}") if target_host_object.nil?
-            migrate_vm_host(vm_object, target_host_object)
-            return true
-          end
-          false
-        end
-
         def get_vm(_pool_name, vm_name)
           vm_hash = nil
           @connection_pool.with_metrics do |pool_object|
@@ -674,15 +657,21 @@ module Vmpooler
         end
 
         def build_compatible_hosts_lists(hosts, percentage)
-          hosts_with_arch_versions = hosts.map { |host| [host[0], host[1], get_host_cpu_arch_version(host[1])] }
-          versions = hosts_with_arch_versions.map { |host| host[2] }.uniq
+          hosts_with_arch_versions = hosts.map { |h|
+            {
+            'utilization' => h[0],
+            'hostname' => h[1],
+            'architecture' => get_host_cpu_arch_version(host[1])
+            }
+          }
+          versions = hosts_with_arch_versions.map { |host| host['architecture'] }.uniq
           architectures = {}
           versions.each do |version|
             architectures[version] = []
           end
 
-          hosts_with_arch_versions.each do |host|
-            architectures[host[2]] << [host[0], host[1], host[2]]
+          hosts_with_arch_versions.each do |h|
+            architectures[h['architecture']] << [h['utilization'], h['hostname'], h['architecture']]
           end
 
           versions.each do |version|
@@ -881,7 +870,72 @@ module Vmpooler
           snapshot
         end
 
-        def migrate_vm_host(vm, host)
+        def get_vm_details(vm_name, connection)
+          vm_object = find_vm(vm_name, connection)
+          return nil if vm_object.nil?
+          parent_host_object = vm_object.summary.runtime.host if vm_object.summary && vm_object.summary.runtime && vm_object.summary.runtime.host
+          parent_host = parent_host_object.name
+          raise('Unable to determine which host the VM is running on') if parent_host.nil?
+          architecture = get_host_cpu_arch_version(parent_host)
+          {
+            'host_name' => parent_host,
+            'object' => vm_object,
+            'architecture' => architecture
+          }
+        end
+
+        def migrate_vm(vm_name, pool_name, redis)
+          redis.srem("vmpooler__migrating__#{pool_name}", vm_name)
+          @connection_pool.with_metrics do |pool_object|
+            connection = ensured_vsphere_connection(pool_object)
+            vm = get_vm_details(vm_name, connection)
+            migration_limit = migration_limit config[:config]['migration_limit']
+            migration_count = redis.scard('vmpooler__migration')
+            if migration_limit
+              if migration_count >= migration_limit
+                logger.log('s', "[ ] [#{pool_name}] '#{vm_name}' is running on #{vm['host_name']}. No migration will be evaluated since the migration_limit has been reached")
+                return
+              end
+              run_select_hosts(pool_name, @provider_hosts)
+              if vm_in_target?(pool_name, vm['host_name'], vm['architecture'], @provider_hosts)
+                logger.log('s', "[ ] [#{pool_name}] No migration required for '#{vm_name}' running on #{vm['host_name']}")
+              else
+                migrate_vm_to_new_host(pool_name, vm_name, vm, redis)
+              end
+            end
+          end
+        end
+
+        def migrate_vm_to_new_host(pool_name, vm_name, vm_hash, redis)
+          redis.sadd('vmpooler__migration', vm_name)
+          target_host_name = select_next_host(pool_name, @provider_hosts, vm_hash['architecture'])
+          target_host_object = find_host_by_dnsname(connection, target_host_name)
+          finish = migrate_vm_and_record_timing(vm_object, target_host_object, vm_hash['host_name'], target_host_name, redis)
+          #logger.log('s', "Provider_hosts is: #{provider.provider_hosts}")
+          logger.log('s', "[>] [#{pool_name}] '#{vm_name}' migrated from #{vm['host_name']} to #{target_host_name} in #{finish} seconds")
+          remove_vmpooler_migration_vm(pool_name, vm_name, redis)
+        end
+
+        def migrate_vm_and_record_timing(vm_object, target_host_object, source_host_name, dest_host_name, redis)
+          start = Time.now
+          migrate_vm(vm_object, target_host_object)
+          finish = format('%.2f', Time.now - start)
+          metrics.timing("migrate.#{pool_name}", finish)
+          metrics.increment("migrate_from.#{source_host_name}")
+          metrics.increment("migrate_to.#{dest_host_name}")
+          checkout_to_migration = format('%.2f', Time.now - Time.parse(redis.hget("vmpooler__vm__#{vm_name}", 'checkout')))
+          redis.hset("vmpooler__vm__#{vm_name}", 'migration_time', finish)
+          redis.hset("vmpooler__vm__#{vm_name}", 'checkout_to_migration', checkout_to_migration)
+          finish
+        end
+
+        def remove_vmpooler_migration_vm(pool, vm, redis)
+          redis.srem('vmpooler__migration', vm)
+        rescue => err
+          logger.log('s', "[x] [#{pool}] '#{vm}' removal from vmpooler__migration failed with an error: #{err}")
+        end
+
+        def migrate_vm_host(vm_object, host)
           relospec = RbVmomi::VIM.VirtualMachineRelocateSpec(host: host)
           vm.RelocateVM_Task(spec: relospec).wait_for_completion
         end
