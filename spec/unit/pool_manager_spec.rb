@@ -1532,24 +1532,6 @@ EOT
 
   describe "#_migrate_vm" do
     let(:vm_parent_hostname) { 'parent1' }
-    let(:vm_new_hostname) { 'new_hostname' }
-    let(:architecture) { 'v3' }
-    let(:vm_details) {
-      {
-        'host' => vm_parent_hostname,
-        'architecture' =>architecture
-      }
-    }
-    let(:provider_hosts) {
-      {
-        'dc1_cluster1' => {
-          'architectures' => {
-            architecture => [vm_new_hostname]
-          }
-        }
-      }
-    }
-
     let(:config) {
       YAML.load(<<-EOT
 ---
@@ -1561,13 +1543,12 @@ EOT
 
     before(:each) do
       expect(subject).not_to be_nil
-      #expect(provider).to receive(:get_vm_details).with(pool, vm).and_return(vm_details)
+      allow(provider).to receive(:get_vm_host).with(pool, vm).and_return(vm_parent_hostname)
     end
 
     context 'when an error occurs trying to retrieve the current host' do
       before(:each) do
-        expect(provider).to receive(:get_vm_details).with(pool, vm).and_raise(RuntimeError,'MockError')
-        #expect(provider).to receive(:get_vm_details).with(pool, vm).and_return(vm_details)
+        expect(provider).to receive(:get_vm_host).with(pool, vm).and_raise(RuntimeError,'MockError')
       end
 
       it 'should raise an error' do
@@ -1577,7 +1558,7 @@ EOT
 
     context 'when the current host can not be determined' do
       before(:each) do
-        expect(provider).to receive(:get_vm_details).with(pool, vm).and_return(nil)
+        expect(provider).to receive(:get_vm_host).with(pool, vm).and_return(nil)
       end
 
       it 'should raise an error' do
@@ -1587,7 +1568,6 @@ EOT
 
     context 'when VM exists but migration is disabled' do
       before(:each) do
-        expect(provider).to receive(:get_vm_details).with(pool, vm).and_return(vm_details)
         create_migrating_vm(vm, pool)
       end
 
@@ -1618,7 +1598,6 @@ EOT
         redis.sadd('vmpooler__migration', 'fakevm3')
         redis.sadd('vmpooler__migration', 'fakevm4')
         redis.sadd('vmpooler__migration', 'fakevm5')
-        expect(provider).to receive(:get_vm_details).with(pool, vm).and_return(vm_details)
       end
 
       it "should not migrate a VM if the migration limit is reached" do
@@ -1641,11 +1620,8 @@ EOT
       end
 
       context 'and host to migrate to is the same as the current host' do
-        let(:architecture) { 'v3' }
         before(:each) do
-          expect(provider).to receive(:get_vm_details).with(pool, vm).and_return(vm_details)
-          expect(provider).to receive(:run_select_hosts)
-          expect(provider).to receive(:vm_in_target?).and_return(true)
+          expect(provider).to receive(:find_least_used_compatible_host).with(pool, vm).and_return(vm_parent_hostname)
         end
 
         it "should not migrate the VM" do
@@ -1665,18 +1641,16 @@ EOT
           expect(redis.scard('vmpooler__migration')).to eq(before_count)
         end
 
-        it "should not call remove_vmpooler_migration_vm" do
-          expect(subject).not_to receive(:remove_vmpooler_migration_vm)
+        it "should call remove_vmpooler_migration_vm" do
+          expect(subject).to receive(:remove_vmpooler_migration_vm)
           subject._migrate_vm(vm, pool, provider)
         end
       end
 
       context 'and host to migrate to different to the current host' do
+        let(:vm_new_hostname) { 'new_hostname' }
         before(:each) do
-          expect(provider).to receive(:get_vm_details).with(pool, vm).and_return(vm_details)
-          expect(provider).to receive(:run_select_hosts)
-          expect(provider).to receive(:vm_in_target?).and_return(false)
-          expect(provider).to receive(:select_next_host).and_return(vm_new_hostname)
+          expect(provider).to receive(:find_least_used_compatible_host).with(pool, vm).and_return(vm_new_hostname)
           expect(subject).to receive(:migrate_vm_and_record_timing).with(vm, pool, vm_parent_hostname, vm_new_hostname, provider).and_return('1.00')
         end
 
