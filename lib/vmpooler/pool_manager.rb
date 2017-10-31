@@ -459,16 +459,10 @@ module Vmpooler
       end
     end
 
-    def migration_limit(migration_limit)
-      # Returns migration_limit setting when enabled
-      return false if migration_limit == 0 || !migration_limit # rubocop:disable Style/NumericPredicate
-      migration_limit if migration_limit >= 1
-    end
-
     def migrate_vm(vm_name, pool_name, provider)
       Thread.new do
         begin
-          provider.migrate_vm(vm_name, pool_name, provider, $redis)
+          provider.migrate_vm(pool_name, vm_name, $redis)
         rescue => err
           $logger.log('s', "[x] [#{pool_name}] '#{vm_name}' migration failed with an error: #{err}")
           provider.remove_vmpooler_migration_vm(pool_name, vm_name, $redis)

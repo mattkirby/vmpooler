@@ -1475,206 +1475,35 @@ EOT
     end
   end
 
-
-  describe '#migration_limit' do
-    # This is a little confusing.  Is this supposed to return a boolean
-    # or integer type?
-    [false,0].each do |testvalue|
-      it "should return false for an input of #{testvalue}" do
-        expect(subject.migration_limit(testvalue)).to eq(false)
-      end
-    end
-
-    [1,32768].each do |testvalue|
-      it "should return #{testvalue} for an input of #{testvalue}" do
-        expect(subject.migration_limit(testvalue)).to eq(testvalue)
-      end
-    end
-
-    [-1,-32768].each do |testvalue|
-      it "should return nil for an input of #{testvalue}" do
-        expect(subject.migration_limit(testvalue)).to be_nil
-      end
-    end
-  end
-
   describe '#migrate_vm' do
     before(:each) do
       expect(subject).not_to be_nil
       expect(Thread).to receive(:new).and_yield
     end
 
-    it 'calls _migrate_vm' do
-      expect(subject).to receive(:_migrate_vm).with(vm, pool, provider)
+    it 'calls migrate_vm' do
+      expect(provider).to receive(:migrate_vm).with(pool, vm, redis)
 
       subject.migrate_vm(vm, pool, provider)
     end
 
     context 'When an error is raised' do
       before(:each) do
-        expect(subject).to receive(:_migrate_vm).with(vm, pool, provider).and_raise('MockError')
+        expect(provider).to receive(:migrate_vm).with(pool, vm, redis).and_raise('MockError')
       end
 
       it 'logs a message' do
         allow(logger).to receive(:log)
         expect(logger).to receive(:log).with('s', "[x] [#{pool}] '#{vm}' migration failed with an error: MockError")
+        expect(provider).to receive(:remove_vmpooler_migration_vm).with(pool, vm, redis)
 
         subject.migrate_vm(vm, pool, provider)
       end
 
       it 'should attempt to remove from vmpooler_migration queue' do
-        expect(subject).to receive(:remove_vmpooler_migration_vm).with(pool, vm)
+        expect(provider).to receive(:remove_vmpooler_migration_vm).with(pool, vm, redis)
 
         subject.migrate_vm(vm, pool, provider)
-      end
-    end
-  end
-
-  describe "#_migrate_vm" do
-    let(:vm_parent_hostname) { 'parent1' }
-    let(:config) {
-      YAML.load(<<-EOT
----
-:config:
-  migration_limit: 5
-EOT
-      )
-    }
-
-    before(:each) do
-      expect(subject).not_to be_nil
-      allow(provider).to receive(:get_vm_host).with(pool, vm).and_return(vm_parent_hostname)
-    end
-
-    context 'when an error occurs trying to retrieve the current host' do
-      before(:each) do
-        expect(provider).to receive(:get_vm_host).with(pool, vm).and_raise(RuntimeError,'MockError')
-      end
-
-      it 'should raise an error' do
-        expect{ subject._migrate_vm(vm, pool, provider) }.to raise_error('MockError')
-      end
-    end
-
-    context 'when the current host can not be determined' do
-      before(:each) do
-        expect(provider).to receive(:get_vm_host).with(pool, vm).and_return(nil)
-      end
-
-      it 'should raise an error' do
-        expect{ subject._migrate_vm(vm, pool, provider) }.to raise_error(/Unable to determine which host the VM is running on/)
-      end
-    end
-
-    context 'when VM exists but migration is disabled' do
-      before(:each) do
-        create_migrating_vm(vm, pool)
-      end
-
-      [-1,-32768,false,0].each do |testvalue|
-        it "should not migrate a VM if the migration limit is #{testvalue}" do
-          config[:config]['migration_limit'] = testvalue
-          expect(logger).to receive(:log).with('s', "[ ] [#{pool}] '#{vm}' is running on #{vm_parent_hostname}")
-          subject._migrate_vm(vm, pool, provider)
-        end
-
-        it "should remove the VM from vmpooler__migrating queue in redis if the migration limit is #{testvalue}" do
-          redis.sadd("vmpooler__migrating__#{pool}", vm)
-          config[:config]['migration_limit'] = testvalue
-
-          expect(redis.sismember("vmpooler__migrating__#{pool}",vm)).to be_truthy
-          subject._migrate_vm(vm, pool, provider)
-          expect(redis.sismember("vmpooler__migrating__#{pool}",vm)).to be_falsey
-        end
-      end
-    end
-
-    context 'when VM exists but migration limit is reached' do
-      before(:each) do
-
-        create_migrating_vm(vm, pool)
-        redis.sadd('vmpooler__migration', 'fakevm1')
-        redis.sadd('vmpooler__migration', 'fakevm2')
-        redis.sadd('vmpooler__migration', 'fakevm3')
-        redis.sadd('vmpooler__migration', 'fakevm4')
-        redis.sadd('vmpooler__migration', 'fakevm5')
-      end
-
-      it "should not migrate a VM if the migration limit is reached" do
-        expect(logger).to receive(:log).with('s',"[ ] [#{pool}] '#{vm}' is running on #{vm_parent_hostname}. No migration will be evaluated since the migration_limit has been reached")
-        subject._migrate_vm(vm, pool, provider)
-      end
-
-      it "should remove the VM from vmpooler__migrating queue in redis if the migration limit is reached" do
-        expect(redis.sismember("vmpooler__migrating__#{pool}",vm)).to be_truthy
-        subject._migrate_vm(vm, pool, provider)
-        expect(redis.sismember("vmpooler__migrating__#{pool}",vm)).to be_falsey
-      end
-    end
-
-    context 'when VM exists but migration limit is not yet reached' do
-      before(:each) do
-        create_migrating_vm(vm, pool)
-        redis.sadd('vmpooler__migration', 'fakevm1')
-        redis.sadd('vmpooler__migration', 'fakevm2')
-      end
-
-      context 'and host to migrate to is the same as the current host' do
-        before(:each) do
-          expect(provider).to receive(:find_least_used_compatible_host).with(pool, vm).and_return(vm_parent_hostname)
-        end
-
-        it "should not migrate the VM" do
-          expect(logger).to receive(:log).with('s', "[ ] [#{pool}] No migration required for '#{vm}' running on #{vm_parent_hostname}")
-          subject._migrate_vm(vm, pool, provider)
-        end
-
-        it "should remove the VM from vmpooler__migrating queue in redis" do
-          expect(redis.sismember("vmpooler__migrating__#{pool}",vm)).to be_truthy
-          subject._migrate_vm(vm, pool, provider)
-          expect(redis.sismember("vmpooler__migrating__#{pool}",vm)).to be_falsey
-        end
-
-        it "should not change the vmpooler_migration queue count" do
-          before_count = redis.scard('vmpooler__migration')
-          subject._migrate_vm(vm, pool, provider)
-          expect(redis.scard('vmpooler__migration')).to eq(before_count)
-        end
-
-        it "should call remove_vmpooler_migration_vm" do
-          expect(subject).to receive(:remove_vmpooler_migration_vm)
-          subject._migrate_vm(vm, pool, provider)
-        end
-      end
-
-      context 'and host to migrate to different to the current host' do
-        let(:vm_new_hostname) { 'new_hostname' }
-        before(:each) do
-          expect(provider).to receive(:find_least_used_compatible_host).with(pool, vm).and_return(vm_new_hostname)
-          expect(subject).to receive(:migrate_vm_and_record_timing).with(vm, pool, vm_parent_hostname, vm_new_hostname, provider).and_return('1.00')
-        end
-
-        it "should migrate the VM" do
-          expect(logger).to receive(:log).with('s', "[>] [#{pool}] '#{vm}' migrated from #{vm_parent_hostname} to #{vm_new_hostname} in 1.00 seconds")
-          subject._migrate_vm(vm, pool, provider)
-        end
-
-        it "should remove the VM from vmpooler__migrating queue in redis" do
-          expect(redis.sismember("vmpooler__migrating__#{pool}",vm)).to be_truthy
-          subject._migrate_vm(vm, pool, provider)
-          expect(redis.sismember("vmpooler__migrating__#{pool}",vm)).to be_falsey
-        end
-
-        it "should not change the vmpooler_migration queue count" do
-          before_count = redis.scard('vmpooler__migration')
-          subject._migrate_vm(vm, pool, provider)
-          expect(redis.scard('vmpooler__migration')).to eq(before_count)
-        end
-
-        it "should call remove_vmpooler_migration_vm" do
-          expect(subject).to receive(:remove_vmpooler_migration_vm)
-          subject._migrate_vm(vm, pool, provider)
-        end
       end
     end
   end
@@ -2326,65 +2155,6 @@ EOT
 
         subject.check_pool(pool_object,maxloop,0)
       end
-    end
-  end
-
-  describe '#remove_vmpooler_migration_vm' do
-    before do
-      expect(subject).not_to be_nil
-    end
-
-    it 'should remove the migration from redis' do
-      redis.sadd('vmpooler__migration', vm)
-      expect(redis.sismember('vmpooler__migration',vm)).to be(true)
-      subject.remove_vmpooler_migration_vm(pool, vm)
-      expect(redis.sismember('vmpooler__migration',vm)).to be(false)
-    end
-
-    it 'should log a message and swallow an error if one occurs' do
-      expect(redis).to receive(:srem).and_raise(RuntimeError,'MockError')
-      expect(logger).to receive(:log).with('s', "[x] [#{pool}] '#{vm}' removal from vmpooler__migration failed with an error: MockError")
-      subject.remove_vmpooler_migration_vm(pool, vm)
-    end
-  end
-
-  describe '#migrate_vm_and_record_timing' do
-    let(:source_host_name) { 'source_host' }
-    let(:dest_host_name) { 'dest_host' }
-
-    before(:each) do
-      create_vm(vm,token)
-      expect(subject).not_to be_nil
-
-      expect(provider).to receive(:migrate_vm_to_host).with(pool, vm, dest_host_name)
-    end
-
-    it 'should return the elapsed time for the migration' do
-      result = subject.migrate_vm_and_record_timing(vm, pool, source_host_name, dest_host_name, provider)
-      expect(result).to match(/0\.[\d]+/)
-    end
-
-    it 'should add timing metric' do
-      expect(metrics).to receive(:timing).with("migrate.#{pool}",String)
-      subject.migrate_vm_and_record_timing(vm, pool, source_host_name, dest_host_name, provider)
-    end
-
-    it 'should increment from_host and to_host metric' do
-      expect(metrics).to receive(:increment).with("migrate_from.#{source_host_name}")
-      expect(metrics).to receive(:increment).with("migrate_to.#{dest_host_name}")
-      subject.migrate_vm_and_record_timing(vm, pool, source_host_name, dest_host_name, provider)
-    end
-
-    it 'should set migration_time metric in redis' do
-      expect(redis.hget("vmpooler__vm__#{vm}", 'migration_time')).to be_nil
-      subject.migrate_vm_and_record_timing(vm, pool, source_host_name, dest_host_name, provider)
-      expect(redis.hget("vmpooler__vm__#{vm}", 'migration_time')).to match(/0\.[\d]+/)
-    end
-
-    it 'should set checkout_to_migration metric in redis' do
-      expect(redis.hget("vmpooler__vm__#{vm}", 'checkout_to_migration')).to be_nil
-      subject.migrate_vm_and_record_timing(vm, pool, source_host_name, dest_host_name, provider)
-      expect(redis.hget("vmpooler__vm__#{vm}", 'checkout_to_migration')).to match(/[01]\.[\d]+/)
     end
   end
 

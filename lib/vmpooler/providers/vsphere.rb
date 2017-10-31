@@ -884,14 +884,21 @@ module Vmpooler
           }
         end
 
-        def migrate_vm(vm_name, pool_name, redis)
+        def migration_enabled?(conf = config)
+          migration_limit = conf[:config]['migration_limit']
+          return false unless migration_limit.is_a? Integer
+          return true if migration_limit > 0
+          false
+        end
+
+        def migrate_vm(pool_name, vm_name, redis)
           redis.srem("vmpooler__migrating__#{pool_name}", vm_name)
           @connection_pool.with_metrics do |pool_object|
             connection = ensured_vsphere_connection(pool_object)
             vm = get_vm_details(vm_name, connection)
-            migration_limit = migration_limit config[:config]['migration_limit']
+            migration_limit = config[:config]['migration_limit'] if config[:config].key?('migration_limit')
             migration_count = redis.scard('vmpooler__migration')
-            if migration_limit
+            if migration_enabled? config
               if migration_count >= migration_limit
                 logger.log('s', "[ ] [#{pool_name}] '#{vm_name}' is running on #{vm['host_name']}. No migration will be evaluated since the migration_limit has been reached")
                 return
