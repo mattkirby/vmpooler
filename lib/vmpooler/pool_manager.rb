@@ -458,69 +458,15 @@ module Vmpooler
       end
     end
 
-    def migration_limit(migration_limit)
-      # Returns migration_limit setting when enabled
-      return false if migration_limit == 0 || !migration_limit # rubocop:disable Style/NumericPredicate
-      migration_limit if migration_limit >= 1
-    end
-
     def migrate_vm(vm_name, pool_name, provider)
       Thread.new do
         begin
-          _migrate_vm(vm_name, pool_name, provider)
+          provider.migrate_vm(pool_name, vm_name, $redis)
         rescue => err
           $logger.log('s', "[x] [#{pool_name}] '#{vm_name}' migration failed with an error: #{err}")
-          remove_vmpooler_migration_vm(pool_name, vm_name)
+          provider.remove_vmpooler_migration_vm(pool_name, vm_name, $redis)
         end
       end
-    end
-
-    def _migrate_vm(vm_name, pool_name, provider)
-      $redis.srem("vmpooler__migrating__#{pool_name}", vm_name)
-
-      vm = provider.get_vm_details(pool_name, vm_name)
-      raise('Unable to determine which host the VM is running on') if vm.nil? or vm['host'].nil?
-      migration_limit = migration_limit $config[:config]['migration_limit']
-      migration_count = $redis.scard('vmpooler__migration')
-
-      if migration_limit
-        if migration_count >= migration_limit
-          $logger.log('s', "[ ] [#{pool_name}] '#{vm_name}' is running on #{vm['host']}. No migration will be evaluated since the migration_limit has been reached")
-          return
-        end
-        provider.run_select_hosts(pool_name, provider.provider_hosts)
-        if provider.vm_in_target?(pool_name, vm['host'], vm['architecture'], provider.provider_hosts)
-          $logger.log('s', "[ ] [#{pool_name}] No migration required for '#{vm_name}' running on #{vm['host']}")
-        else
-          $redis.sadd('vmpooler__migration', vm_name)
-          target_host_name = provider.select_next_host(pool_name, provider.provider_hosts, vm['architecture'])
-          finish = migrate_vm_and_record_timing(vm_name, pool_name, vm['host'], target_host_name, provider)
-          $logger.log('s', "Provider_hosts is: #{provider.provider_hosts}")
-          $logger.log('s', "[>] [#{pool_name}] '#{vm_name}' migrated from #{vm['host']} to #{target_host_name} in #{finish} seconds")
-          remove_vmpooler_migration_vm(pool_name, vm_name)
-        end
-      else
-        $logger.log('s', "[ ] [#{pool_name}] '#{vm_name}' is running on #{vm['host']}")
-      end
-    end
-
-    def remove_vmpooler_migration_vm(pool, vm)
-      $redis.srem('vmpooler__migration', vm)
-    rescue => err
-      $logger.log('s', "[x] [#{pool}] '#{vm}' removal from vmpooler__migration failed with an error: #{err}")
-    end
-
-    def migrate_vm_and_record_timing(vm_name, pool_name, source_host_name, dest_host_name, provider)
-      start = Time.now
-      provider.migrate_vm_to_host(pool_name, vm_name, dest_host_name)
-      finish = format('%.2f', Time.now - start)
-      $metrics.timing("migrate.#{pool_name}", finish)
-      $metrics.increment("migrate_from.#{source_host_name}")
-      $metrics.increment("migrate_to.#{dest_host_name}")
-      checkout_to_migration = format('%.2f', Time.now - Time.parse($redis.hget("vmpooler__vm__#{vm_name}", 'checkout')))
-      $redis.hset("vmpooler__vm__#{vm_name}", 'migration_time', finish)
-      $redis.hset("vmpooler__vm__#{vm_name}", 'checkout_to_migration', checkout_to_migration)
-      finish
     end
 
     # Helper method mainly used for unit testing

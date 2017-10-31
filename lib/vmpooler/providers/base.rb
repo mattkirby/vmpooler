@@ -20,6 +20,7 @@ module Vmpooler
           @metrics = metrics
           @provider_name = name
           @provider_hosts = {}
+          @provider_hosts_lock = Mutex.new
 
           # Ensure that there is not a nil provider configuration
           @config[:providers] = {} if @config[:providers].nil?
@@ -120,6 +121,14 @@ module Vmpooler
         #   [Boolean] : true on success or false on failure
         def migrate_vm_to_host(_pool_name, _vm_name, _dest_host_name)
           raise("#{self.class.name} does not implement migrate_vm_to_host")
+        end
+
+        # inputs
+        #   [String] pool_name      : Name of the pool
+        #   [String] vm_name        : Name of the VM to migrate
+        #   [Class] redis           : Redis object
+        def migrate_vm(_pool_name, _vm_name, _dest_host_name)
+          raise("#{self.class.name} does not implement migrate_vm")
         end
 
         # inputs
