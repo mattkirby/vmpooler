@@ -58,11 +58,13 @@ module Vmpooler
 
         def select_target_hosts(target, cluster, datacenter)
           dc = "#{datacenter}_#{cluster}"
-          target[dc] = {} unless target.key?(dc)
-          target[dc]['checking'] = true
-          hosts_hash = find_least_used_hosts(cluster, datacenter, 100)
-          target[dc] = hosts_hash
-          target[dc]['check_time_finished'] = Time.now
+          @provider_hosts_lock.synchronize do
+            target[dc] = {} unless target.key?(dc)
+            target[dc]['checking'] = true
+            hosts_hash = find_least_used_hosts(cluster, datacenter, 100)
+            target[dc] = hosts_hash
+            target[dc]['check_time_finished'] = Time.now
+          end
         end
 
         def run_select_hosts(pool_name, target)
@@ -108,25 +110,27 @@ module Vmpooler
           raise("cluster for pool #{pool_name} cannot be identified") if cluster.nil?
           raise("datacenter for pool #{pool_name} cannot be identified") if datacenter.nil?
           dc = "#{datacenter}_#{cluster}"
-          if architecture
-            raise("no target hosts are available for #{pool_name} configured with datacenter #{datacenter} and cluster #{cluster}") if target[dc]['architectures'][architecture].size == 0
-            host = target[dc]['architectures'][architecture].shift
-            target[dc]['architectures'][architecture] << host
-            if target[dc]['hosts'].include?(host)
-              target[dc]['hosts'].delete(host)
-              target[dc]['hosts'] << host
-            end
-            return host
-          else
-            raise("no target hosts are available for #{pool_name} configured with datacenter #{datacenter} and cluster #{cluster}") if target[dc]['hosts'].size == 0
-            host = target[dc]['hosts'].shift
-            target[dc]['hosts'] << host
-            target[dc]['architectures'].each do |arch|
-              if arch.include?(host)
-                target[dc]['architectures'][arch] = arch.partition { |v| v != host }.flatten
+          @provider_hosts_lock.synchronize do
+            if architecture
+              raise("no target hosts are available for #{pool_name} configured with datacenter #{datacenter} and cluster #{cluster}") if target[dc]['architectures'][architecture].size == 0
+              host = target[dc]['architectures'][architecture].shift
+              target[dc]['architectures'][architecture] << host
+              if target[dc]['hosts'].include?(host)
+                target[dc]['hosts'].delete(host)
+                target[dc]['hosts'] << host
               end
+              return host
+            else
+              raise("no target hosts are available for #{pool_name} configured with datacenter #{datacenter} and cluster #{cluster}") if target[dc]['hosts'].size == 0
+              host = target[dc]['hosts'].shift
+              target[dc]['hosts'] << host
+              target[dc]['architectures'].each do |arch|
+                if arch.include?(host)
+                  target[dc]['architectures'][arch] = arch.partition { |v| v != host }.flatten
+                end
+              end
+              return host
             end
-            return host
           end
         end
 
