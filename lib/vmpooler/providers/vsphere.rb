@@ -234,6 +234,13 @@ module Vmpooler
 
             begin
               vm_target_folder = find_folder(target_folder_path, connection, target_datacenter_name)
+              if vm_target_folder.nil? and @config[:config].key?('create_folders') and @config[:config]['create_folders'] == true
+                dc = connection.serviceInstance.find_datacenter(target_datacenter_name)
+                vm_target_folder = dc.vmFolder.traverse(target_folder_path, type=RbVmomi::VIM::Folder, create=true)
+                if vm_target_folder.nil?
+                  raise(_err)
+                end
+              end
             rescue => _err
               #if _err =~ /Unexpected object type encountered/
               if @config[:config]['create_folders'] == true
