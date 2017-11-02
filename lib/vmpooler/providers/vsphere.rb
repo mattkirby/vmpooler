@@ -882,19 +882,19 @@ module Vmpooler
           @connection_pool.with_metrics do |pool_object|
             connection = ensured_vsphere_connection(pool_object)
             vm = get_vm_details(vm_name, connection)
-          end
-          migration_limit = @config[:config]['migration_limit'] if @config[:config].key?('migration_limit')
-          migration_count = redis.scard('vmpooler__migration')
-          if migration_enabled? @config
-            if migration_count >= migration_limit
-              logger.log('s', "[ ] [#{pool_name}] '#{vm_name}' is running on #{vm['host_name']}. No migration will be evaluated since the migration_limit has been reached")
-              return
-            end
-            run_select_hosts(pool_name, @provider_hosts)
-            if vm_in_target?(pool_name, vm['host_name'], vm['architecture'], @provider_hosts)
-              logger.log('s', "[ ] [#{pool_name}] No migration required for '#{vm_name}' running on #{vm['host_name']}")
-            else
-              migrate_vm_to_new_host(pool_name, vm_name, vm, redis)
+            migration_limit = @config[:config]['migration_limit'] if @config[:config].key?('migration_limit')
+            migration_count = redis.scard('vmpooler__migration')
+            if migration_enabled? @config
+              if migration_count >= migration_limit
+                logger.log('s', "[ ] [#{pool_name}] '#{vm_name}' is running on #{vm['host_name']}. No migration will be evaluated since the migration_limit has been reached")
+                return
+              end
+              run_select_hosts(pool_name, @provider_hosts)
+              if vm_in_target?(pool_name, vm['host_name'], vm['architecture'], @provider_hosts)
+                logger.log('s', "[ ] [#{pool_name}] No migration required for '#{vm_name}' running on #{vm['host_name']}")
+              else
+                migrate_vm_to_new_host(pool_name, vm_name, vm, redis)
+              end
             end
           end
         end
