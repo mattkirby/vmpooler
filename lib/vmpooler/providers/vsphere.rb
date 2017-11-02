@@ -903,18 +903,18 @@ module Vmpooler
           redis.sadd('vmpooler__migration', vm_name)
           target_host_name = select_next_host(pool_name, @provider_hosts, vm_hash['architecture'])
           target_host_object = find_host_by_dnsname(connection, target_host_name)
-          finish = migrate_vm_and_record_timing(vm_hash['object'], target_host_object, vm_hash['host_name'], target_host_name, redis)
+          finish = migrate_vm_and_record_timing(pool_name, vm_name, vm_hash, target_host_object, target_host_name, redis)
           #logger.log('s', "Provider_hosts is: #{provider.provider_hosts}")
           logger.log('s', "[>] [#{pool_name}] '#{vm_name}' migrated from #{vm_hash['host_name']} to #{target_host_name} in #{finish} seconds")
           remove_vmpooler_migration_vm(pool_name, vm_name, redis)
         end
 
-        def migrate_vm_and_record_timing(vm_object, target_host_object, source_host_name, dest_host_name, redis)
+        def migrate_vm_and_record_timing(pool_name, vm_name, vm_hash, target_host_object, dest_host_name, redis)
           start = Time.now
-          migrate_vm_host(vm_object, target_host_object)
+          migrate_vm_host(vm_hash['object'], target_host_object)
           finish = format('%.2f', Time.now - start)
           metrics.timing("migrate.#{pool_name}", finish)
-          metrics.increment("migrate_from.#{source_host_name}")
+          metrics.increment("migrate_from.#{vm_hash['host_name']}")
           metrics.increment("migrate_to.#{dest_host_name}")
           checkout_to_migration = format('%.2f', Time.now - Time.parse(redis.hget("vmpooler__vm__#{vm_name}", 'checkout')))
           redis.hset("vmpooler__vm__#{vm_name}", 'migration_time', finish)
