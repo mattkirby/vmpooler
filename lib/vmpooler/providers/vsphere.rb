@@ -911,7 +911,7 @@ module Vmpooler
 
         def migrate_vm_and_record_timing(vm_object, target_host_object, source_host_name, dest_host_name, redis)
           start = Time.now
-          migrate_vm(vm_object, target_host_object)
+          migrate_vm_host(vm_object, target_host_object)
           finish = format('%.2f', Time.now - start)
           metrics.timing("migrate.#{pool_name}", finish)
           metrics.increment("migrate_from.#{source_host_name}")
