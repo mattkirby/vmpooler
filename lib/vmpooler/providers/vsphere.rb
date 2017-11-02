@@ -870,8 +870,8 @@ module Vmpooler
           }
         end
 
-        def migration_enabled?(conf = config)
-          migration_limit = conf[:config]['migration_limit']
+        def migration_enabled?(config)
+          migration_limit = config[:config]['migration_limit']
           return false unless migration_limit.is_a? Integer
           return true if migration_limit > 0
           false
@@ -885,7 +885,7 @@ module Vmpooler
           end
           migration_limit = @config[:config]['migration_limit'] if @config[:config].key?('migration_limit')
           migration_count = redis.scard('vmpooler__migration')
-          if migration_enabled? config
+          if migration_enabled? @config
             if migration_count >= migration_limit
               logger.log('s', "[ ] [#{pool_name}] '#{vm_name}' is running on #{vm['host_name']}. No migration will be evaluated since the migration_limit has been reached")
               return
