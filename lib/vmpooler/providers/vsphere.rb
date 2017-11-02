@@ -235,20 +235,11 @@ module Vmpooler
             begin
               vm_target_folder = find_folder(target_folder_path, connection, target_datacenter_name)
               if vm_target_folder.nil? and @config[:config].key?('create_folders') and @config[:config]['create_folders'] == true
-                dc = connection.serviceInstance.find_datacenter(target_datacenter_name)
-                vm_target_folder = dc.vmFolder.traverse(target_folder_path, type=RbVmomi::VIM::Folder, create=true)
-                if vm_target_folder.nil?
-                  raise(_err)
-                end
+                create_folder(connection, target_datacenter_name, target_folder_path)
               end
             rescue => _err
-              #if _err =~ /Unexpected object type encountered/
-              if @config[:config]['create_folders'] == true
-                dc = connection.serviceInstance.find_datacenter(target_datacenter_name)
-                vm_target_folder = dc.vmFolder.traverse(target_folder_path, type=RbVmomi::VIM::Folder, create=true)
-                if vm_target_folder.nil?
-                  raise(_err)
-                end
+              if @config[:config].key?('create_folders') and @config[:config]['create_folders'] == true
+                create_folder(connection, target_datacenter_name, target_folder_path)
               else
                 raise(_err)
               end
@@ -871,7 +862,7 @@ module Vmpooler
           parent_host_object = vm_object.summary.runtime.host if vm_object.summary && vm_object.summary.runtime && vm_object.summary.runtime.host
           parent_host = parent_host_object.name
           raise('Unable to determine which host the VM is running on') if parent_host.nil?
-          architecture = get_host_cpu_arch_version(parent_host)
+          architecture = get_host_cpu_arch_version(parent_host_object)
           {
             'host_name' => parent_host,
             'object' => vm_object,
@@ -940,6 +931,13 @@ module Vmpooler
         def migrate_vm_host(vm_object, host)
           relospec = RbVmomi::VIM.VirtualMachineRelocateSpec(host: host)
           vm_object.RelocateVM_Task(spec: relospec).wait_for_completion
+        end
+
+        def create_folder(connection, new_folder, datacenter)
+          dc = connection.serviceInstance.find_datacenter(datacenter)
+          folder_object = dc.vmFolder.traverse(new_folder, type=RbVmomi::VIM::Folder, create=true)
+          raise("Cannot create folder #{new_folder}") if folder_object.nil?
+          folder_object
         end
       end
     end
