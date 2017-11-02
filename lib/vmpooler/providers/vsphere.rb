@@ -57,11 +57,12 @@ module Vmpooler
         end
 
         def select_target_hosts(target, cluster, datacenter)
+          percentage = 100
           dc = "#{datacenter}_#{cluster}"
           @provider_hosts_lock.synchronize do
             target[dc] = {} unless target.key?(dc)
             target[dc]['checking'] = true
-            hosts_hash = find_least_used_hosts(cluster, datacenter, 100)
+            hosts_hash = find_least_used_hosts(cluster, datacenter, percentage)
             target[dc] = hosts_hash
             target[dc]['check_time_finished'] = Time.now
           end
@@ -654,7 +655,7 @@ module Vmpooler
           versions = hosts_with_arch_versions.map { |host| host['architecture'] }.uniq
           architectures = {}
           versions.each do |version|
-            architectures[version] = [] unless architectures.key?(version)
+            architectures[version] = []
           end
 
           hosts_with_arch_versions.each do |h|
