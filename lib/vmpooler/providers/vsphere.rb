@@ -923,7 +923,7 @@ module Vmpooler
         end
 
         def remove_vmpooler_migration_vm(pool_name, vm_name, redis)
-          redis.srem('vmpooler__migration', vm)
+          redis.srem('vmpooler__migration', vm_name)
         rescue => err
           logger.log('s', "[x] [#{pool_name}] '#{vm_name}' removal from vmpooler__migration failed with an error: #{err}")
         end
