@@ -905,7 +905,7 @@ module Vmpooler
           target_host_object = find_host_by_dnsname(connection, target_host_name)
           finish = migrate_vm_and_record_timing(vm_object, target_host_object, vm_hash['host_name'], target_host_name, redis)
           #logger.log('s', "Provider_hosts is: #{provider.provider_hosts}")
-          logger.log('s', "[>] [#{pool_name}] '#{vm_name}' migrated from #{vm['host_name']} to #{target_host_name} in #{finish} seconds")
+          logger.log('s', "[>] [#{pool_name}] '#{vm_name}' migrated from #{vm_hash['host_name']} to #{target_host_name} in #{finish} seconds")
           remove_vmpooler_migration_vm(pool_name, vm_name, redis)
         end
 
@@ -922,10 +922,10 @@ module Vmpooler
           finish
         end
 
-        def remove_vmpooler_migration_vm(pool, vm, redis)
+        def remove_vmpooler_migration_vm(pool_name, vm_name, redis)
           redis.srem('vmpooler__migration', vm)
         rescue => err
-          logger.log('s', "[x] [#{pool}] '#{vm}' removal from vmpooler__migration failed with an error: #{err}")
+          logger.log('s', "[x] [#{pool_name}] '#{vm_name}' removal from vmpooler__migration failed with an error: #{err}")
         end
 
         def migrate_vm_host(vm_object, host)
