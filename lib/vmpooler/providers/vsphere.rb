@@ -236,11 +236,11 @@ module Vmpooler
             begin
               vm_target_folder = find_folder(target_folder_path, connection, target_datacenter_name)
               if vm_target_folder.nil? and @config[:config].key?('create_folders') and @config[:config]['create_folders'] == true
-                create_folder(connection, target_datacenter_name, target_folder_path)
+                create_folder(connection, target_folder_path, target_datacenter_name)
               end
             rescue => _err
               if @config[:config].key?('create_folders') and @config[:config]['create_folders'] == true
-                create_folder(connection, target_datacenter_name, target_folder_path)
+                create_folder(connection, target_folder_path, target_datacenter_name)
               else
                 raise(_err)
               end
