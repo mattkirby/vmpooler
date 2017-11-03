@@ -677,8 +677,8 @@ module Vmpooler
           hosts.each do |host|
             least_used_hosts << host if host[0] <= average_utilization
           end
-          hosts_to_select = hosts.count - 1 if percentage == 100
           hosts_to_select = (hosts.count * (percentage  / 100.0)).to_int
+          hosts_to_select = hosts.count - 1 if percentage == 100
           least_used_hosts.sort[0..hosts_to_select].map { |host| host[1].name }
         end
 
@@ -686,6 +686,7 @@ module Vmpooler
           @connection_pool.with_metrics do |pool_object|
             connection = ensured_vsphere_connection(pool_object)
             cluster_object = find_cluster(cluster, connection, datacentername)
+            raise("Cluster #{cluster} cannot be found") if cluster_object.nil?
             target_hosts = get_cluster_host_utilization(cluster_object)
             raise("there is no candidate in vcenter that meets all the required conditions, that that the cluster has available hosts in a 'green' status, not in maintenance mode and not overloaded CPU and memory'") if target_hosts.nil?
             architectures = build_compatible_hosts_lists(target_hosts, percentage)
