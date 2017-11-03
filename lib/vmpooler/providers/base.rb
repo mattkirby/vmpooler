@@ -127,7 +127,7 @@ module Vmpooler
         #   [String] pool_name      : Name of the pool
         #   [String] vm_name        : Name of the VM to migrate
         #   [Class] redis           : Redis object
-        def migrate_vm(_pool_name, _vm_name, _dest_host_name)
+        def migrate_vm(_pool_name, _vm_name, _redis)
           raise("#{self.class.name} does not implement migrate_vm")
         end
 
