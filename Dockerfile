@@ -10,7 +10,7 @@
 
 FROM jruby:9.1-jdk
 
-RUN mkdir -p /var/lib/vmpooler && mkdir /var/log/vmpooler
+RUN mkdir -p /var/lib/vmpooler
 
 WORKDIR /var/lib/vmpooler
 
