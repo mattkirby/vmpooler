@@ -506,7 +506,7 @@ module Vmpooler
             ready_size = $redis.scard("vmpooler__ready__#{options[:poolname]}")
             break unless ready_size == initial_ready_size
             if $redis.hget('vmpooler__config__poolsize', options[:poolname])
-              break unless $redis.hget('vmpooler__config__poolsize', options[:poolname]).to_i == pool['size']
+              break unless ready_size == $redis.hget('vmpooler__config__poolsize', options[:poolname]).to_i
             end
           end
         end
