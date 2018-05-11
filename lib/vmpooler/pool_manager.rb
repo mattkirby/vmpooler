@@ -697,9 +697,9 @@ module Vmpooler
         $logger.log('s', "[!] [#{pool['name']}] is empty")
       end
 
-      if redis.hget('vmpooler_config_poolsize', pool['name'])
-        unless redis.hget('vmpooler_config_poolsize', pool['name']) == pool['size']
-          pool['size'] = redis.hget('vmpooler_config_poolsize', pool['name'])
+      if $redis.hget('vmpooler_config_poolsize', pool['name'])
+        unless $redis.hget('vmpooler_config_poolsize', pool['name']) == pool['size']
+          pool['size'] = $redis.hget('vmpooler_config_poolsize', pool['name'])
         end
       end
 
