@@ -698,8 +698,8 @@ module Vmpooler
       end
 
       if $redis.hget('vmpooler_config_poolsize', pool['name'])
-        unless $redis.hget('vmpooler_config_poolsize', pool['name']) == pool['size']
-          pool['size'] = $redis.hget('vmpooler_config_poolsize', pool['name'])
+        unless $redis.hget('vmpooler_config_poolsize', pool['name']).to_i == pool['size']
+          pool['size'] = $redis.hget('vmpooler_config_poolsize', pool['name']).to_i
         end
       end
 
