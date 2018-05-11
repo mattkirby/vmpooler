@@ -697,9 +697,12 @@ module Vmpooler
         $logger.log('s', "[!] [#{pool['name']}] is empty")
       end
 
-      if $redis.hget('vmpooler_config_poolsize', pool['name'])
-        unless $redis.hget('vmpooler_config_poolsize', pool['name']).to_i == pool['size']
-          pool['size'] = $redis.hget('vmpooler_config_poolsize', pool['name']).to_i
+      # Check to see if a pool size change has been made via the configuration API
+      # Since check_pool runs in a loop it does not
+      # otherwise identify this change when running
+      if $redis.hget('vmpooler__config__poolsize', pool['name'])
+        unless $redis.hget('vmpooler__config__poolsize', pool['name']).to_i == pool['size']
+          pool['size'] = $redis.hget('vmpooler__config__poolsize', pool['name']).to_i
         end
       end
 
@@ -716,6 +719,14 @@ module Vmpooler
               raise
             end
           end
+        end
+      end
+
+      # Remove VMs in excess of the configured pool size
+      if ready > pool['size']
+        difference = total - pool['size'] - 1
+        $redis.smembers("vmpooler__ready__#{pool['name']}")[0..difference].each do |vm|
+          $redis.smove("vmpooler__ready__#{pool['name']}", "vmpooler__completed__#{pool['name']}", vm)
         end
       end
 
