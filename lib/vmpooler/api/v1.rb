@@ -758,15 +758,14 @@ module Vmpooler
 
       pool_index = pool_index(pools)
 
-      unless pools[pool_index[params[:pool]]]['size'] == params[:size]
+      if pools[pool_index[params[:pool]]]['size'] == params[:size]
+        status 204
+        result['ok'] = true
+      else
+        Vmpooler.config[:pools][pool_index[params[:pool]]]['size'] = params[:size]
         pools[pool_index[params[:pool]]]['size'] = params[:size]
         backend.hset('vmpooler_config_poolsize', params[:pool], params[:size])
         status 200
-        result['ok'] = true
-      end
-
-      if pools[pool_index[params[:pool]]]['size'] == params[:size]
-        status 204
         result['ok'] = true
       end
 

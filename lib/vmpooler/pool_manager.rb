@@ -697,6 +697,10 @@ module Vmpooler
         $logger.log('s', "[!] [#{pool['name']}] is empty")
       end
 
+      if redis.hget('vmpooler_config_poolsize', pool['name'])
+        thr.exit unless redis.hget('vmpooler_config_poolsize', pool['name']) == pool['size']
+      end
+
       if total < pool['size']
         (1..(pool['size'] - total)).each do |_i|
           if $redis.get('vmpooler__tasks__clone').to_i < $config[:config]['task_limit'].to_i
