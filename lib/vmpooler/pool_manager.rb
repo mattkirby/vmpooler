@@ -698,7 +698,9 @@ module Vmpooler
       end
 
       if redis.hget('vmpooler_config_poolsize', pool['name'])
-        thr.exit unless redis.hget('vmpooler_config_poolsize', pool['name']) == pool['size']
+        unless redis.hget('vmpooler_config_poolsize', pool['name']) == pool['size']
+          pool['size'] = redis.hget('vmpooler_config_poolsize', pool['name'])
+        end
       end
 
       if total < pool['size']
