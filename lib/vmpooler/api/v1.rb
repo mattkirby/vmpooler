@@ -128,8 +128,8 @@ module Vmpooler
 
       payload.each do |poolname, size|
         unless pools[pool_index[poolname]]['size'] == size
-          pools[pool_index[poolname]]['size'] = params[:size]
-          backend.hset('vmpooler__config__poolsize', params[:pool], params[:size])
+          pools[pool_index[poolname]]['size'] = size
+          backend.hset('vmpooler__config__poolsize', poolname, size)
           pools_updated += 1
         end
       end
