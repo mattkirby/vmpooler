@@ -795,7 +795,8 @@ module Vmpooler
 
     post "#{api_prefix}/config/poolsize/?" do
       content_type :json
-      result = { 'ok' => false }
+
+      need_token! if Vmpooler::API.settings.config[:auth]
 
       payload = JSON.parse(request.body.read)
 
@@ -808,10 +809,12 @@ module Vmpooler
             metrics.increment("config.invalid.#{bad_template}")
           end
           status 404
+          result = { 'ok' => false }
         end
       else
         metrics.increment('config.invalid.unknown')
         status 404
+        result = { 'ok' => false }
       end
 
       JSON.pretty_generate(result)
