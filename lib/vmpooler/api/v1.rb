@@ -138,6 +138,8 @@ module Vmpooler
 
       status 200 if pools_updated > 0
       result['ok'] = true
+
+      result
     end
 
     # Provide run-time statistics
