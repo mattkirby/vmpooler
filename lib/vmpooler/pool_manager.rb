@@ -729,6 +729,11 @@ module Vmpooler
         $redis.smembers("vmpooler__ready__#{pool['name']}")[0..difference].each do |vm|
           $redis.smove("vmpooler__ready__#{pool['name']}", "vmpooler__completed__#{pool['name']}", vm)
         end
+        if $redis.smembers("vmpooler__pending__#{pool['name']}").count > 0
+          $redis.smembers("vmpooler__pending__#{pool['name']}").each do |vm|
+            $redis.smove("vmpooler__pending__#{pool['name']}", "vmpooler__completed__#{pool['name']}", vm)
+          end
+        end
       end
 
       pool_check_response
