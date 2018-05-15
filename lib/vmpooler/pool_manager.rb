@@ -691,24 +691,22 @@ module Vmpooler
       if $redis.hget('vmpooler__config__template', pool['name'])
         unless $redis.hget('vmpooler__config__template', pool['name']) == pool['template']
           # Ensure we are only updating a template once
-          if $redis.hget('vmpooler__config__updating', pool['name']) == 0
-            $redis.hset('vmpooler__config__updating', pool['name'], 1)
-            begin
-              new_template_name = $redis.hget('vmpooler__config__poolsize', pool['name'])
-              $logger.log('s', "[*] [#{pool['name']} template updated from #{pool['template']} to #{new_template_name}")
-              pool['template'] = new_template_name
-              # Remove all ready and pending VMs so new instances are created from the new template
-              $redis.smembers("vmpooler__ready__#{pool['name']}").each do |vm|
-                $redis.smove("vmpooler__ready__#{pool['name']}", "vmpooler__completed__#{pool['name']}", vm)
-              end
-              $redis.smembers("vmpooler__pending__#{pool['name']}").each do |vm|
-                $redis.smove("vmpooler__pending__#{pool['name']}", "vmpooler__completed__#{pool['name']}", vm)
-              end
-              # Prepare template for deployment
-              provider.create_template_delta_disks(pool['name'], pool['template'])
-            ensure
-              $redis.hdel('vmpooler__config__updating', pool['name'])
+          $redis.hset('vmpooler__config__updating', pool['name'], 1) unless $redis.hget('vmpooler__config__updating', pool['name'])
+          begin
+            new_template_name = $redis.hget('vmpooler__config__pooltemplate', pool['name'])
+            $logger.log('s', "[*] [#{pool['name']} template updated from #{pool['template']} to #{new_template_name}")
+            pool['template'] = new_template_name
+            # Remove all ready and pending VMs so new instances are created from the new template
+            $redis.smembers("vmpooler__ready__#{pool['name']}").each do |vm|
+              $redis.smove("vmpooler__ready__#{pool['name']}", "vmpooler__completed__#{pool['name']}", vm)
             end
+            $redis.smembers("vmpooler__pending__#{pool['name']}").each do |vm|
+              $redis.smove("vmpooler__pending__#{pool['name']}", "vmpooler__completed__#{pool['name']}", vm)
+            end
+            # Prepare template for deployment
+            provider.create_template_delta_disks(pool['name'], pool['template'])
+          ensure
+            $redis.hdel('vmpooler__config__updating', pool['name'])
           end
         end
       end
