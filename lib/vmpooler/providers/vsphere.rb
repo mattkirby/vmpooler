@@ -986,12 +986,13 @@ module Vmpooler
         def create_template_delta_disks(pool)
           @connection_pool.with_metrics do |pool_object|
             connection = ensured_vsphere_connection(pool['name'])
+            datacenter = get_target_datacenter_from_config(pool['name'])
+            return nil if datacenter.nil?
+
             propSpecs = {
               :entity => self,
               :inventoryPath => "#{datacenter}/vm/#{pool['template']}"
             }
-            datacenter = get_target_datacenter_from_config(pool['name'])
-            return nil if datacenter.nil?
             template_object = connection.searchIndex.FindByInventoryPath(propSpecs)
             return nil if template_object.nil?
 
