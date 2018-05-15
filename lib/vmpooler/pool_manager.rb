@@ -691,6 +691,7 @@ module Vmpooler
       $logger.log('s', "checking pool template for #{pool['name']}")
       if $redis.hget('vmpooler__config__template', pool['name'])
         $logger.log('s', "#{pool['name']} has redis template configured")
+        $logger.log('s', "#{pool['name']}  template matches redis") if $redis.hget('vmpooler__config__template', pool['name']) == pool['template']
         unless $redis.hget('vmpooler__config__template', pool['name']) == pool['template']
           $logger.log('s', "#{pool['name']} updated template detected")
           # Ensure we are only updating a template once
