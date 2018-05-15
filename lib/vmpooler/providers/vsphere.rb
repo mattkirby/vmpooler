@@ -985,7 +985,7 @@ module Vmpooler
 
         def create_template_delta_disks(pool)
           @connection_pool.with_metrics do |pool_object|
-            connection = ensured_vsphere_connection(pool['name'])
+            connection = ensured_vsphere_connection(pool_object)
             datacenter = get_target_datacenter_from_config(pool['name'])
             raise('cannot find datacenter') if datacenter.nil?
 
