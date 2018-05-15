@@ -820,6 +820,28 @@ module Vmpooler
       JSON.pretty_generate(result)
     end
 
+    post "#{api_prefix}/config/:pool/:template/?" do
+      content_type :json
+
+      need_token! if Vmpooler::API.settings.config[:auth]
+
+      status 404
+      result = { 'ok' => false }
+
+      pool_index = pool_index(pools)
+
+      if pools[pool_index[params[:pool]]]['template'] == params[:template]
+        status 204
+        result['ok'] = true
+      else
+        pools[pool_index[params[:pool]]]['template'] = params[:template]
+        backend.hset('vmpooler__config__template', params[:pool], params[:template])
+        status 200
+        result['ok'] = true
+      end
+
+      JSON.pretty_generate(result)
+    end
   end
   end
 end

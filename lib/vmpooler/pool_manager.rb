@@ -684,40 +684,72 @@ module Vmpooler
         end
       end
 
-      # REPOPULATE
-      ready = $redis.scard("vmpooler__ready__#{pool['name']}")
-      total = $redis.scard("vmpooler__pending__#{pool['name']}") + ready
-
-      $metrics.gauge("ready.#{pool['name']}", $redis.scard("vmpooler__ready__#{pool['name']}"))
-      $metrics.gauge("running.#{pool['name']}", $redis.scard("vmpooler__running__#{pool['name']}"))
-
-      if $redis.get("vmpooler__empty__#{pool['name']}")
-        $redis.del("vmpooler__empty__#{pool['name']}") unless ready.zero?
-      elsif ready.zero?
-        $redis.set("vmpooler__empty__#{pool['name']}", 'true')
-        $logger.log('s', "[!] [#{pool['name']}] is empty")
-      end
-
-      # Check to see if a pool size change has been made via the configuration API
+      # UPDATE TEMPLATE
+      # Check to see if a pool template change has been made via the configuration API
       # Since check_pool runs in a loop it does not
       # otherwise identify this change when running
-      if $redis.hget('vmpooler__config__poolsize', pool['name'])
-        unless $redis.hget('vmpooler__config__poolsize', pool['name']).to_i == pool['size']
-          pool['size'] = $redis.hget('vmpooler__config__poolsize', pool['name']).to_i
+      if $redis.hget('vmpooler__config__template', pool['name'])
+        unless $redis.hget('vmpooler__config__template', pool['name']) == pool['template']
+          # Ensure we are only updating a template once
+          if $redis.hget('vmpooler__config__updating', pool['name']) == 0
+            $redis.hset('vmpooler__config__updating', pool['name'], 1)
+            begin
+              new_template_name = $redis.hget('vmpooler__config__poolsize', pool['name'])
+              $logger.log('s', "[*] [#{pool['name']} template updated from #{pool['template']} to #{new_template_name}")
+              pool['template'] = new_template_name
+              # Remove all ready and pending VMs so new instances are created from the new template
+              $redis.smembers("vmpooler__ready__#{pool['name']}").each do |vm|
+                $redis.smove("vmpooler__ready__#{pool['name']}", "vmpooler__completed__#{pool['name']}", vm)
+              end
+              $redis.smembers("vmpooler__pending__#{pool['name']}").each do |vm|
+                $redis.smove("vmpooler__pending__#{pool['name']}", "vmpooler__completed__#{pool['name']}", vm)
+              end
+              # Prepare template for deployment
+              provider.create_template_delta_disks(pool['name'], pool['template'])
+            ensure
+              $redis.hdel('vmpooler__config__updating', pool['name'])
+            end
+          end
         end
       end
 
-      if total < pool['size']
-        (1..(pool['size'] - total)).each do |_i|
-          if $redis.get('vmpooler__tasks__clone').to_i < $config[:config]['task_limit'].to_i
-            begin
-              $redis.incr('vmpooler__tasks__clone')
-              pool_check_response[:cloned_vms] += 1
-              clone_vm(pool, provider)
-            rescue => err
-              $logger.log('s', "[!] [#{pool['name']}] clone failed during check_pool with an error: #{err}")
-              $redis.decr('vmpooler__tasks__clone')
-              raise
+      # REPOPULATE
+      # Do not attempt to repopulate a pool while a template is updating
+      unless $redis.hget('vmpooler__config__updating', pool['name'])
+        ready = $redis.scard("vmpooler__ready__#{pool['name']}")
+        total = $redis.scard("vmpooler__pending__#{pool['name']}") + ready
+
+        $metrics.gauge("ready.#{pool['name']}", $redis.scard("vmpooler__ready__#{pool['name']}"))
+        $metrics.gauge("running.#{pool['name']}", $redis.scard("vmpooler__running__#{pool['name']}"))
+
+        if $redis.get("vmpooler__empty__#{pool['name']}")
+          $redis.del("vmpooler__empty__#{pool['name']}") unless ready.zero?
+        elsif ready.zero?
+          $redis.set("vmpooler__empty__#{pool['name']}", 'true')
+          $logger.log('s', "[!] [#{pool['name']}] is empty")
+        end
+
+        # Check to see if a pool size change has been made via the configuration API
+        # Since check_pool runs in a loop it does not
+        # otherwise identify this change when running
+        if $redis.hget('vmpooler__config__poolsize', pool['name'])
+          unless $redis.hget('vmpooler__config__poolsize', pool['name']).to_i == pool['size']
+            pool['size'] = $redis.hget('vmpooler__config__poolsize', pool['name']).to_i
+          end
+        end
+
+        if total < pool['size']
+          (1..(pool['size'] - total)).each do |_i|
+            if $redis.get('vmpooler__tasks__clone').to_i < $config[:config]['task_limit'].to_i
+              begin
+                $redis.incr('vmpooler__tasks__clone')
+                pool_check_response[:cloned_vms] += 1
+                clone_vm(pool, provider)
+              rescue => err
+                $logger.log('s', "[!] [#{pool['name']}] clone failed during check_pool with an error: #{err}")
+                $redis.decr('vmpooler__tasks__clone')
+                raise
+              end
             end
           end
         end
