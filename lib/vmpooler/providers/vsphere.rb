@@ -197,17 +197,14 @@ module Vmpooler
             target_cluster_name = get_target_cluster_from_config(pool_name)
             target_datacenter_name = get_target_datacenter_from_config(pool_name)
 
-            # Extract the template VM name from the full path
+            # Get the template VM object
             raise("Pool #{pool_name} did not specify a full path for the template for the provider #{name}") unless template_path =~ /\//
-            templatefolders = template_path.split('/')
-            template_name = templatefolders.pop
-
-            # Get the actual objects from vSphere
-            template_folder_object = find_folder(templatefolders.join('/'), connection, target_datacenter_name)
-            raise("Pool #{pool_name} specifies a template folder of #{templatefolders.join('/')} which does not exist for the provider #{name}") if template_folder_object.nil?
-
-            template_vm_object = template_folder_object.find(template_name)
-            raise("Pool #{pool_name} specifies a template VM of #{template_name} which does not exist for the provider #{name}") if template_vm_object.nil?
+            propSpecs = {
+              :entity => self,
+              :inventoryPath => "#{target_datacenter_name}/vm/#{pool['template']}"
+            }
+            template_vm_object = connection.searchIndex.FindByInventoryPath(propSpecs)
+            raise("Pool #{pool_name} specifies a template VM of #{pool['template']} which does not exist for the provider #{name}") if template_vm_object.nil?
 
             # Annotate with creation time, origin template, etc.
             # Add extraconfig options that can be queried by vmtools
@@ -963,6 +960,47 @@ module Vmpooler
           folder_object = dc.vmFolder.traverse(new_folder, type=RbVmomi::VIM::Folder, create=true)
           raise("Cannot create folder #{new_folder}") if folder_object.nil?
           folder_object
+        end
+
+        def create_link_spec(disk)
+          linkSpec = {
+            :deviceChange => [
+              {
+                :operation => :remove,
+                :device => disk
+              },
+              {
+                :operation => :add,
+                :fileOperation => :create,
+                :device => disk.dup.tap { |x|
+                  x.backing = x.backing.dup
+                  x.backing.fileName = "[#{disk.backing.datastore.name}]"
+                  x.backing.parent = disk.backing
+                }
+              }
+            ]
+          }
+          linkSpec
+        end
+
+        def create_template_delta_disks(pool)
+          @connection_pool.with_metrics do |pool_object|
+            connection = ensured_vsphere_connection(pool['name'])
+            propSpecs = {
+              :entity => self,
+              :inventoryPath => "#{datacenter}/vm/#{pool['template']}"
+            }
+            datacenter = get_target_datacenter_from_config(pool['name'])
+            return nil if datacenter.nil?
+            template_object = connection.searchIndex.FindByInventoryPath(propSpecs)
+            return nil if template_object.nil?
+
+            disks = template_object.config.hardware.device.grep( RbVmomi::VIM::VirtualDisk )
+            disks.select { |d| d.backing.parent == nil }.each do |disk|
+              linkSpec = create_link_spec(disk)
+              template_object.ReconfigVM_Task( :spec => linkSpec ).wait_for_completion
+            end
+          end
         end
       end
     end

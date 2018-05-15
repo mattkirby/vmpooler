@@ -283,6 +283,7 @@ EOT
 
     let(:clone_vm_task) { mock_RbVmomi_VIM_Task() }
     let(:new_vm_object)  { mock_RbVmomi_VIM_VirtualMachine({ :name => vmname }) }
+    let(:new_template_object)  { mock_RbVmomi_VIM_VirtualMachine({ :name => vmname }) }
 
     before(:each) do
       allow(subject).to receive(:connect_to_vsphere).and_return(connection)
@@ -305,19 +306,10 @@ EOT
       end
     end
 
-    context 'Given a template path that does not exist' do
-      before(:each) do
-        config[:pools][0]['template'] = 'missing_Templates/pool1'
-      end
-
-      it 'should raise an error' do
-        expect{ subject.create_vm(poolname, vmname) }.to raise_error(/specifies a template folder of .+ which does not exist/)
-      end
-    end
-
     context 'Given a template VM that does not exist' do
       before(:each) do
         config[:pools][0]['template'] = 'Templates/missing_template'
+        allow(connection.searchIndex).to receive(:FindByInventoryPath).and_return(nil)
       end
 
       it 'should raise an error' do
@@ -327,7 +319,8 @@ EOT
 
     context 'Given a successful creation' do
       before(:each) do
-        template_vm = subject.find_folder('Templates',connection,datacenter_name).find('pool1')
+        template_vm = new_template_object
+        allow(connection.searchIndex).to receive(:FindByInventoryPath).and_return(new_template_object)
         allow(template_vm).to receive(:CloneVM_Task).and_return(clone_vm_task)
         allow(clone_vm_task).to receive(:wait_for_completion).and_return(new_vm_object)
       end
@@ -339,7 +332,7 @@ EOT
       end
 
       it 'should use the appropriate Create_VM spec' do
-        template_vm = subject.find_folder('Templates',connection,datacenter_name).find('pool1')
+        template_vm = new_template_object
         expect(template_vm).to receive(:CloneVM_Task)
           .with(create_vm_spec(vmname,'pool1','datastore0'))
           .and_return(clone_vm_task)
