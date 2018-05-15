@@ -987,16 +987,21 @@ module Vmpooler
           @connection_pool.with_metrics do |pool_object|
             connection = ensured_vsphere_connection(pool['name'])
             datacenter = get_target_datacenter_from_config(pool['name'])
-            return nil if datacenter.nil?
+            raise('cannot find datacenter') if datacenter.nil?
 
             propSpecs = {
               :entity => self,
               :inventoryPath => "#{datacenter}/vm/#{pool['template']}"
             }
             template_object = connection.searchIndex.FindByInventoryPath(propSpecs)
-            return nil if template_object.nil?
+            raise('cannot find template object') if template_object.nil?
 
-            disks = template_object.config.hardware.device.grep( RbVmomi::VIM::VirtualDisk )
+            begin
+              disks = template_object.config.hardware.device.grep( RbVmomi::VIM::VirtualDisk )
+            rescue
+              next
+            end
+
             disks.select { |d| d.backing.parent == nil }.each do |disk|
               linkSpec = create_link_spec(disk)
               template_object.ReconfigVM_Task( :spec => linkSpec ).wait_for_completion
