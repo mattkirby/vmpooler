@@ -844,7 +844,7 @@ module Vmpooler
               status 200
             end
           end
-          status 204 unless pools_updated
+          status 204 unless pools_updated > 0
           result['ok'] = true
         else
           invalid.each do |bad_template|
