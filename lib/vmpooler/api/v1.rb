@@ -820,24 +820,43 @@ module Vmpooler
       JSON.pretty_generate(result)
     end
 
-    post "#{api_prefix}/config/:pool/:template/?" do
+    post "#{api_prefix}/config/pooltemplate/?" do
       content_type :json
 
       need_token! if Vmpooler::API.settings.config[:auth]
+
+      payload = JSON.parse(request.body.read)
 
       status 404
       result = { 'ok' => false }
 
       pool_index = pool_index(pools)
+      pools_updated = 0
 
-      if pools[pool_index[params[:pool]]]['template'] == params[:template]
-        status 204
-        result['ok'] = true
+      if payload
+        invalid = invalid_templates(payload)
+        if invalid.empty?
+          payload.each do |poolname, template|
+            unless pools[pool_index[poolname]]['template'] == template
+              pools[pool_index[poolname]]['template'] = template
+              backend.hset('vmpooler__config__template', poolname, template)
+              pools_updated += 1
+              status 200
+            end
+          end
+          status 204 unless pools_updated
+          result['ok'] = true
+        else
+          invalid.each do |bad_template|
+            metrics.increment("config.invalid.#{bad_template}")
+          end
+          status 404
+          result = { 'ok' => false }
+        end
       else
-        pools[pool_index[params[:pool]]]['template'] = params[:template]
-        backend.hset('vmpooler__config__template', params[:pool], params[:template])
-        status 200
-        result['ok'] = true
+        metrics.increment('config.invalid.unknown')
+        status 404
+        result = { 'ok' => false }
       end
 
       JSON.pretty_generate(result)
