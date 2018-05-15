@@ -688,11 +688,15 @@ module Vmpooler
       # Check to see if a pool template change has been made via the configuration API
       # Since check_pool runs in a loop it does not
       # otherwise identify this change when running
+      $logger.log('s', "checking pool template for #{pool['name']}")
       if $redis.hget('vmpooler__config__template', pool['name'])
+        $logger.log('s', "#{pool['name']} has redis template configured")
         unless $redis.hget('vmpooler__config__template', pool['name']) == pool['template']
+          $logger.log('s', "#{pool['name']} updated template detected")
           # Ensure we are only updating a template once
           return if $redis.hget('vmpooler__config__updating', pool['name'])
           $redis.hset('vmpooler__config__updating', pool['name'], 1)
+          $logger.log('s', "#{pool['name']} beginning update")
           begin
             old_template_name = pool['template']
             new_template_name = $redis.hget('vmpooler__config__template', pool['name'])
