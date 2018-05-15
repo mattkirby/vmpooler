@@ -699,13 +699,20 @@ module Vmpooler
             pool['template'] = new_template_name
             $logger.log('s', "[*] [#{pool['name']} template updated from #{old_template_name} to #{new_template_name}")
             # Remove all ready and pending VMs so new instances are created from the new template
-            $redis.smembers("vmpooler__ready__#{pool['name']}").each do |vm|
-              $redis.smove("vmpooler__ready__#{pool['name']}", "vmpooler__completed__#{pool['name']}", vm)
+            if $redis.smembers("vmpooler__ready__#{pool['name']}")
+              $logger.log('s', "[*] [#{pool['name']} removing ready instances")
+              $redis.smembers("vmpooler__ready__#{pool['name']}").each do |vm|
+                $redis.smove("vmpooler__ready__#{pool['name']}", "vmpooler__completed__#{pool['name']}", vm)
+              end
             end
-            $redis.smembers("vmpooler__pending__#{pool['name']}").each do |vm|
-              $redis.smove("vmpooler__pending__#{pool['name']}", "vmpooler__completed__#{pool['name']}", vm)
+            if $redis.smembers("vmpooler__pending#{pool['name']}")
+              $logger.log('s', "[*] [#{pool['name']} removing pending instances")
+              $redis.smembers("vmpooler__pending__#{pool['name']}").each do |vm|
+                $redis.smove("vmpooler__pending__#{pool['name']}", "vmpooler__completed__#{pool['name']}", vm)
+              end
             end
             # Prepare template for deployment
+            $logger.log('s', "[*] [#{pool['name']} creating template deltas")
             provider.create_template_delta_disks(pool)
           ensure
             $redis.hdel('vmpooler__config__updating', pool['name'])

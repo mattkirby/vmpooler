@@ -1002,9 +1002,13 @@ module Vmpooler
               next
             end
 
-            disks.select { |d| d.backing.parent == nil }.each do |disk|
-              linkSpec = create_link_spec(disk)
-              template_object.ReconfigVM_Task( :spec => linkSpec ).wait_for_completion
+            begin
+              disks.select { |d| d.backing.parent == nil }.each do |disk|
+                linkSpec = create_link_spec(disk)
+                template_object.ReconfigVM_Task( :spec => linkSpec ).wait_for_completion
+              end
+            rescue => _err
+              raise(_err)
             end
           end
         end
