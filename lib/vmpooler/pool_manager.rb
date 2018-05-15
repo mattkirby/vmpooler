@@ -691,10 +691,11 @@ module Vmpooler
       if $redis.hget('vmpooler__config__template', pool['name'])
         unless $redis.hget('vmpooler__config__template', pool['name']) == pool['template']
           # Ensure we are only updating a template once
-          $redis.hset('vmpooler__config__updating', pool['name'], 1) unless $redis.hget('vmpooler__config__updating', pool['name'])
+          return if $redis.hget('vmpooler__config__updating', pool['name'])
+          $redis.hset('vmpooler__config__updating', pool['name'], 1)
           begin
             old_template_name = pool['template']
-            new_template_name = $redis.hget('vmpooler__config__pooltemplate', pool['name'])
+            new_template_name = $redis.hget('vmpooler__config__template', pool['name'])
             pool['template'] = new_template_name
             $logger.log('s', "[*] [#{pool['name']} template updated from #{old_template_name} to #{new_template_name}")
             # Remove all ready and pending VMs so new instances are created from the new template
