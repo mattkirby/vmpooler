@@ -689,16 +689,11 @@ module Vmpooler
       # Check to see if a pool template change has been made via the configuration API
       # Since check_pool runs in a loop it does not
       # otherwise identify this change when running
-      $logger.log('s', "checking pool template for #{pool['name']}")
       if $redis.hget('vmpooler__config__template', pool['name'])
-        $logger.log('s', "#{pool['name']} has redis template configured")
-        $logger.log('s', "#{pool['name']}  template matches redis") if $redis.hget('vmpooler__config__template', pool['name']) == pool['template']
         unless $redis.hget('vmpooler__config__template', pool['name']) == $redis.hget('vmpooler__template', pool['name'])
-          $logger.log('s', "#{pool['name']} updated template detected")
           # Ensure we are only updating a template once
           return if $redis.hget('vmpooler__config__updating', pool['name'])
           $redis.hset('vmpooler__config__updating', pool['name'], 1)
-          $logger.log('s', "#{pool['name']} beginning update")
           begin
             old_template_name = $redis.hget('vmpooler__template', pool['name'])
             new_template_name = $redis.hget('vmpooler__config__template', pool['name'])
@@ -707,13 +702,12 @@ module Vmpooler
             $logger.log('s', "[*] [#{pool['name']} template updated from #{old_template_name} to #{new_template_name}")
             # Remove all ready and pending VMs so new instances are created from the new template
             if $redis.smembers("vmpooler__ready__#{pool['name']}")
-              $logger.log('s', "[*] [#{pool['name']} removing ready instances")
+              $logger.log('s', "[*] [#{pool['name']} removing ready and pending instances")
               $redis.smembers("vmpooler__ready__#{pool['name']}").each do |vm|
                 $redis.smove("vmpooler__ready__#{pool['name']}", "vmpooler__completed__#{pool['name']}", vm)
               end
             end
             if $redis.smembers("vmpooler__pending__#{pool['name']}")
-              $logger.log('s', "[*] [#{pool['name']} removing pending instances")
               $redis.smembers("vmpooler__pending__#{pool['name']}").each do |vm|
                 $redis.smove("vmpooler__pending__#{pool['name']}", "vmpooler__completed__#{pool['name']}", vm)
               end
