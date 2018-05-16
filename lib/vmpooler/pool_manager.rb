@@ -526,6 +526,7 @@ module Vmpooler
 
       loop_delay_decay = 2.0 if loop_delay_decay <= 1.0
       loop_delay_max = loop_delay_min if loop_delay_max.nil? || loop_delay_max < loop_delay_min
+      $redis.hset('vmpooler__template', pool['name'], pool['template'])
 
       $threads[pool['name']] = Thread.new do
         begin
@@ -692,14 +693,14 @@ module Vmpooler
       if $redis.hget('vmpooler__config__template', pool['name'])
         $logger.log('s', "#{pool['name']} has redis template configured")
         $logger.log('s', "#{pool['name']}  template matches redis") if $redis.hget('vmpooler__config__template', pool['name']) == pool['template']
-        unless $redis.hget('vmpooler__config__template', pool['name']) == pool['template']
+        unless $redis.hget('vmpooler__config__template', pool['name']) == $redis.hget('vmpooler__template', pool['name'])
           $logger.log('s', "#{pool['name']} updated template detected")
           # Ensure we are only updating a template once
           return if $redis.hget('vmpooler__config__updating', pool['name'])
           $redis.hset('vmpooler__config__updating', pool['name'], 1)
           $logger.log('s', "#{pool['name']} beginning update")
           begin
-            old_template_name = pool['template']
+            old_template_name = $redis.hget('vmpooler__template', pool['name'])
             new_template_name = $redis.hget('vmpooler__config__template', pool['name'])
             pool['template'] = new_template_name
             $logger.log('s', "[*] [#{pool['name']} template updated from #{old_template_name} to #{new_template_name}")
