@@ -703,6 +703,7 @@ module Vmpooler
             old_template_name = $redis.hget('vmpooler__template', pool['name'])
             new_template_name = $redis.hget('vmpooler__config__template', pool['name'])
             pool['template'] = new_template_name
+            $redis.hset('vmpooler__template', pool['name'], new_template_name)
             $logger.log('s', "[*] [#{pool['name']} template updated from #{old_template_name} to #{new_template_name}")
             # Remove all ready and pending VMs so new instances are created from the new template
             if $redis.smembers("vmpooler__ready__#{pool['name']}")
