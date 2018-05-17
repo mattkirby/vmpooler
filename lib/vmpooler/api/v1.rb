@@ -127,18 +127,15 @@ module Vmpooler
       pools_updated = 0
 
       payload.each do |poolname, size|
-        unless pools[pool_index[poolname]]['size'] == size
-          pools[pool_index[poolname]]['size'] = size
+        unless pools[pool_index[poolname]]['size'] == size.to_i
+          pools[pool_index[poolname]]['size'] = size.to_i
           backend.hset('vmpooler__config__poolsize', poolname, size)
           pools_updated += 1
+          status 201
         end
       end
-
-      status 204
-
-      status 200 if pools_updated > 0
+      status 200 unless pools_updated > 0
       result['ok'] = true
-
       result
     end
 
@@ -524,6 +521,24 @@ module Vmpooler
       invalid
     end
 
+    def invalid_template_or_size(payload)
+      invalid = []
+      payload.each do |pool, size|
+        invalid << pool unless pool_exists?(pool)
+        Integer(size) rescue invalid << pool
+      end
+      invalid
+    end
+
+    def invalid_template_or_path(payload)
+      invalid = []
+      payload.each do |pool, template|
+        invalid << pool unless pool_exists?(pool)
+        invalid << pool unless template.include? '/'
+      end
+      invalid
+    end
+
     post "#{api_prefix}/vm/:template/?" do
       content_type :json
       result = { 'ok' => false }
@@ -770,38 +785,16 @@ module Vmpooler
       JSON.pretty_generate(result)
     end
 
-    post "#{api_prefix}/config/:pool/:size/?" do
-      content_type :json
-
-      need_token! if Vmpooler::API.settings.config[:auth]
-
-      status 404
-      result = { 'ok' => false }
-
-      pool_index = pool_index(pools)
-
-      if pools[pool_index[params[:pool]]]['size'] == params[:size]
-        status 204
-        result['ok'] = true
-      else
-        pools[pool_index[params[:pool]]]['size'] = params[:size]
-        backend.hset('vmpooler__config__poolsize', params[:pool], params[:size])
-        status 200
-        result['ok'] = true
-      end
-
-      JSON.pretty_generate(result)
-    end
-
     post "#{api_prefix}/config/poolsize/?" do
       content_type :json
+      result = { 'ok' => false }
 
       need_token! if Vmpooler::API.settings.config[:auth]
 
       payload = JSON.parse(request.body.read)
 
       if payload
-        invalid = invalid_templates(payload)
+        invalid = invalid_template_or_size(payload)
         if invalid.empty?
           result = update_pool_size(payload)
         else
@@ -834,17 +827,17 @@ module Vmpooler
       pools_updated = 0
 
       if payload
-        invalid = invalid_templates(payload)
+        invalid = invalid_template_or_path(payload)
         if invalid.empty?
           payload.each do |poolname, template|
             unless pools[pool_index[poolname]]['template'] == template
               pools[pool_index[poolname]]['template'] = template
               backend.hset('vmpooler__config__template', poolname, template)
               pools_updated += 1
-              status 200
+              status 201
             end
           end
-          status 204 unless pools_updated > 0
+          status 200 unless pools_updated > 0
           result['ok'] = true
         else
           invalid.each do |bad_template|
