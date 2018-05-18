@@ -139,6 +139,25 @@ module Vmpooler
       result
     end
 
+    def update_pool_template(payload)
+      result = { 'ok' => false }
+
+      pool_index = pool_index(pools)
+      pools_updated = 0
+
+      payload.each do |poolname, template|
+        unless pools[pool_index[poolname]]['template'] == template
+          pools[pool_index[poolname]]['template'] = template
+          backend.hset('vmpooler__config__template', poolname, template)
+          pools_updated += 1
+          status 201
+        end
+      end
+      status 200 unless pools_updated > 0
+      result['ok'] = true
+      result
+    end
+
     # Provide run-time statistics
     #
     # Example:
@@ -802,12 +821,10 @@ module Vmpooler
             metrics.increment("config.invalid.#{bad_template}")
           end
           status 404
-          result = { 'ok' => false }
         end
       else
         metrics.increment('config.invalid.unknown')
         status 404
-        result = { 'ok' => false }
       end
 
       JSON.pretty_generate(result)
@@ -815,41 +832,25 @@ module Vmpooler
 
     post "#{api_prefix}/config/pooltemplate/?" do
       content_type :json
+      result = { 'ok' => false }
 
       need_token! if Vmpooler::API.settings.config[:auth]
 
       payload = JSON.parse(request.body.read)
 
-      status 404
-      result = { 'ok' => false }
-
-      pool_index = pool_index(pools)
-      pools_updated = 0
-
       if payload
         invalid = invalid_template_or_path(payload)
         if invalid.empty?
-          payload.each do |poolname, template|
-            unless pools[pool_index[poolname]]['template'] == template
-              pools[pool_index[poolname]]['template'] = template
-              backend.hset('vmpooler__config__template', poolname, template)
-              pools_updated += 1
-              status 201
-            end
-          end
-          status 200 unless pools_updated > 0
-          result['ok'] = true
+          result = update_pool_template(payload)
         else
           invalid.each do |bad_template|
             metrics.increment("config.invalid.#{bad_template}")
           end
           status 404
-          result = { 'ok' => false }
         end
       else
         metrics.increment('config.invalid.unknown')
         status 404
-        result = { 'ok' => false }
       end
 
       JSON.pretty_generate(result)
