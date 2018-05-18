@@ -1617,6 +1617,51 @@ EOT
     end
   end
 
+  describe 'remove_excess_vms' do
+    let(:config) {
+      YAML.load(<<-EOT
+---
+:pools:
+  - name: #{pool}
+    size: 2
+EOT
+      )
+    }
+
+    before(:each) do
+      expect(subject).not_to be_nil
+    end
+
+    context 'with a nil ready value' do
+      it 'should return nil' do
+        expect(subject.remove_excess_vms(config[:pools][0], provider, nil, nil)).to be_nil
+      end
+    end
+
+    context 'with a total size less than the pool size' do
+      it 'should return nil' do
+        expect(subject.remove_excess_vms(config[:pools][0], provider, 1, 2)).to be_nil
+      end
+    end
+
+    context 'with a total size greater than the pool size' do
+      it 'should remove excess ready vms' do
+        expect(subject).to receive(:move_vm_queue).exactly(2).times
+
+        subject.remove_excess_vms(config[:pools][0], provider, 4, 4)
+      end
+
+      it 'should remove excess pending vms' do
+        create_pending_vm(pool,'vm1')
+        create_pending_vm(pool,'vm2')
+        create_pending_vm(pool,'vm3')
+        expect(subject).to receive(:move_vm_queue).exactly(3).times
+
+        subject.remove_excess_vms(config[:pools][0], provider, 2, 5)
+      end
+    end
+  end
+
   describe "#execute!" do
     let(:config) {
       YAML.load(<<-EOT
@@ -2897,6 +2942,38 @@ EOT
           expect(logger).to receive(:log).with("s", "[!] [#{pool}] clone failed during check_pool with an error: MockError")
           
           expect{ subject._check_pool(pool_object,provider) }.to raise_error(RuntimeError,'MockError')
+        end
+      end
+
+      context 'when a pool template is updating' do
+        before(:each) do
+          redis.hset('vmpooler__config__updating', pool, 1)
+          expect(provider).to receive(:vms_in_pool).with(pool).and_return([])
+        end
+
+        it 'should not call clone_vm to populate the pool' do
+          pool_size = 5
+          config[:pools][0]['size'] = pool_size
+
+          expect(subject).to_not receive(:clone_vm)
+
+          subject._check_pool(pool_object,provider)
+        end
+      end
+
+      context 'when an excess number of ready vms exist' do
+
+        before(:each) do
+          expect(provider).to receive(:vms_in_pool).with(pool).and_return([])
+          allow(redis).to receive(:scard)
+          expect(redis).to receive(:scard).with("vmpooler__ready__#{pool}").and_return(1)
+          expect(redis).to receive(:scard).with("vmpooler__pending__#{pool}").and_return(1)
+        end
+
+        it 'should call remove_excess_vms' do
+          expect(subject).to receive(:remove_excess_vms).with(config[:pools][0], provider, 1, 2)
+
+          subject._check_pool(config[:pools][0],provider)
         end
       end
 

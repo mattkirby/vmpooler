@@ -591,6 +591,23 @@ module Vmpooler
       end
     end
 
+    def remove_excess_vms(pool, provider, ready, total)
+      unless ready.nil?
+        if total > pool['size']
+          difference = ready - pool['size']
+          difference.times do
+            next_vm = $redis.spop("vmpooler__ready__#{pool['name']}")
+            move_vm_queue(pool, next_vm, 'ready', 'completed', "removing VMs in excess of configured size")
+          end
+          if total > ready
+            $redis.smembers("vmpooler__pending__#{pool['name']}").each do |vm|
+              move_vm_queue(pool, vm, 'pending', 'completed', "removing VMs in excess of configured size")
+            end
+          end
+        end
+      end
+    end
+
     def _check_pool(pool, provider)
       pool_check_response = {
         discovered_vms: 0,
@@ -746,7 +763,7 @@ module Vmpooler
         # otherwise identify this change when running
         if $redis.hget('vmpooler__config__poolsize', pool['name'])
           unless $redis.hget('vmpooler__config__poolsize', pool['name']).to_i == pool['size']
-            pool['size'] = $redis.hget('vmpooler__config__poolsize', pool['name']).to_i
+            pool['size'] = Integer($redis.hget('vmpooler__config__poolsize', pool['name']))
           end
         end
 
@@ -768,17 +785,7 @@ module Vmpooler
       end
 
       # Remove VMs in excess of the configured pool size
-      if ready > pool['size']
-        difference = total - pool['size'] - 1
-        $redis.smembers("vmpooler__ready__#{pool['name']}")[0..difference].each do |vm|
-          $redis.smove("vmpooler__ready__#{pool['name']}", "vmpooler__completed__#{pool['name']}", vm)
-        end
-        if $redis.smembers("vmpooler__pending__#{pool['name']}").count > 0
-          $redis.smembers("vmpooler__pending__#{pool['name']}").each do |vm|
-            $redis.smove("vmpooler__pending__#{pool['name']}", "vmpooler__completed__#{pool['name']}", vm)
-          end
-        end
-      end
+      remove_excess_vms(pool, provider, ready, total)
 
       pool_check_response
     end
