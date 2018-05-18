@@ -1503,6 +1503,120 @@ EOT
     end
   end
 
+  describe 'update_pool_template' do
+    let(:template) { 'templates/pool_template' }
+    let(:new_template) { 'templates/new_pool_template' }
+    let(:vsphere_provider) { double('vsphere_provider') }
+    let(:config) {
+      YAML.load(<<-EOT
+---
+:pools:
+  - name: #{pool}
+    template: "#{template}"
+EOT
+      )
+    }
+
+    before(:each) do
+      expect(subject).not_to be_nil
+      redis.del('vmpooler__template')
+      redis.del('vmpooler__config__template')
+      redis.del('vmpooler__config__updating')
+    end
+
+    it 'returns when vmpooler config template is not set' do
+      expect(subject.update_pool_template(config[:pools][0], provider)).to be_nil
+    end
+
+    context 'with template that requires no change' do
+      before(:each) do
+        redis.hset('vmpooler__template', pool, template)
+        redis.hset('vmpooler__config__template', pool, template)
+      end
+
+      it 'should return' do
+        expect(subject.update_pool_template(config[:pools][0], provider)).to be_nil
+      end
+    end
+
+    context 'with a pool that requires an update' do
+      before(:each) do
+        redis.hset('vmpooler__template', pool, template)
+        redis.hset('vmpooler__config__template', pool, new_template)
+        allow(logger).to receive(:log)
+        allow(redis).to receive(:hset)
+        expect(provider).to receive(:create_template_delta_disks).with(config[:pools][0])
+      end
+
+      it 'should update the configuration value' do
+        expect(redis).to receive(:hset).with('vmpooler__template', pool, new_template)
+
+        subject.update_pool_template(config[:pools][0], provider)
+      end
+
+      it 'should log a message for updating the template' do
+        expect(logger).to receive(:log).with('s', "[*] [#{pool}] template updated from #{template} to #{new_template}")
+
+        subject.update_pool_template(config[:pools][0], provider)
+      end
+
+      it 'should log messages for creating template deltas' do
+        expect(logger).to receive(:log).with('s', "[*] [#{pool}] creating template deltas")
+        expect(logger).to receive(:log).with('s', "[*] [#{pool}] template deltas have been created")
+
+        subject.update_pool_template(config[:pools][0], provider)
+      end
+    end
+
+    context 'with ready and pending vms' do
+      let(:vmname) { 'vm2' }
+      before(:each) do
+        create_ready_vm(pool,vmname)
+        create_pending_vm(pool,vmname)
+        redis.hset('vmpooler__template', pool, template)
+        redis.hset('vmpooler__config__template', pool, new_template)
+        allow(logger).to receive(:log)
+        allow(redis).to receive(:smove)
+        expect(provider).to receive(:create_template_delta_disks).with(config[:pools][0])
+      end
+
+      it 'should log a message for removing ready vms' do
+
+        expect(logger).to receive(:log).with('s', "[*] [#{pool}] removing ready and pending instances")
+
+        subject.update_pool_template(config[:pools][0], provider)
+      end
+      it 'should remove ready vms' do
+        expect(redis).to receive(:smove).with("vmpooler__ready__#{pool}", "vmpooler__completed__#{pool}", vmname)
+
+        subject.update_pool_template(config[:pools][0], provider)
+      end
+
+      it 'should remove pending vms' do
+        expect(redis).to receive(:smove).with("vmpooler__pending__#{pool}", "vmpooler__completed__#{pool}", vmname)
+
+        subject.update_pool_template(config[:pools][0], provider)
+      end
+    end
+
+#     it 'should log a message for the template delta creation' do
+#
+#       subject.update_pool_template(config[:pools][0])
+#     end
+
+    context 'when already updating' do
+      before(:each) do
+        redis.hset('vmpooler__template', pool, template)
+        redis.hset('vmpooler__config__template', pool, new_template)
+        redis.hset('vmpooler__config__updating', pool, 1)
+      end
+
+      it 'should return' do
+        expect(subject.update_pool_template(config[:pools][0], provider)).to be_nil
+      end
+    end
+  end
+
   describe "#execute!" do
     let(:config) {
       YAML.load(<<-EOT

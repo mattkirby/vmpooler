@@ -501,7 +501,6 @@ module Vmpooler
           wakeup_by = Time.now + wakeup_period
 
           # Wakeup if the number of ready VMs has changed
-          # or if the pool size configuration has changed
           if options[:pool_size_change]
             ready_size = $redis.scard("vmpooler__ready__#{options[:poolname]}")
             break unless ready_size == initial_ready_size
@@ -557,7 +556,7 @@ module Vmpooler
       end
     end
 
-    def update_pool_template(pool)
+    def update_pool_template(pool, provider)
       return unless $redis.hget('vmpooler__config__template', pool['name'])
       unless $redis.hget('vmpooler__config__template', pool['name']) == $redis.hget('vmpooler__template', pool['name'])
         # Ensure we are only updating a template once
@@ -569,23 +568,23 @@ module Vmpooler
           new_template_name = $redis.hget('vmpooler__config__template', pool['name'])
           pool['template'] = new_template_name
           $redis.hset('vmpooler__template', pool['name'], new_template_name)
-          $logger.log('s', "[*] [#{pool['name']} template updated from #{old_template_name} to #{new_template_name}")
+          $logger.log('s', "[*] [#{pool['name']}] template updated from #{old_template_name} to #{new_template_name}")
           # Remove all ready and pending VMs so new instances are created from the new template
-          if $redis.smembers("vmpooler__ready__#{pool['name']}")
-            $logger.log('s', "[*] [#{pool['name']} removing ready and pending instances")
+          if $redis.scard("vmpooler__ready__#{pool['name']}") > 0
+            $logger.log('s', "[*] [#{pool['name']}] removing ready and pending instances")
             $redis.smembers("vmpooler__ready__#{pool['name']}").each do |vm|
               $redis.smove("vmpooler__ready__#{pool['name']}", "vmpooler__completed__#{pool['name']}", vm)
             end
           end
-          if $redis.smembers("vmpooler__pending__#{pool['name']}")
+          if $redis.scard("vmpooler__pending__#{pool['name']}") > 0
             $redis.smembers("vmpooler__pending__#{pool['name']}").each do |vm|
               $redis.smove("vmpooler__pending__#{pool['name']}", "vmpooler__completed__#{pool['name']}", vm)
             end
           end
           # Prepare template for deployment
-          $logger.log('s', "[*] [#{pool['name']} creating template deltas")
+          $logger.log('s', "[*] [#{pool['name']}] creating template deltas")
           provider.create_template_delta_disks(pool)
-          $logger.log('s', "[*] [#{pool['name']} template deltas have been created")
+          $logger.log('s', "[*] [#{pool['name']}] template deltas have been created")
         ensure
           $redis.hdel('vmpooler__config__updating', pool['name'])
         end
@@ -724,7 +723,7 @@ module Vmpooler
       # Check to see if a pool template change has been made via the configuration API
       # Since check_pool runs in a loop it does not
       # otherwise identify this change when running
-      update_pool_template(pool)
+      update_pool_template(pool, provider)
 
       # REPOPULATE
       # Do not attempt to repopulate a pool while a template is updating
