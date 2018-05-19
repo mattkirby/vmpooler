@@ -2945,6 +2945,22 @@ EOT
         end
       end
 
+      context 'when a pool size configuration change is detected' do
+        let(:poolsize) { 2 }
+        let(:newpoolsize) { 3 }
+        before(:each) do
+          config[:pools][0]['size'] = poolsize
+          redis.hset('vmpooler__config__poolsize', pool, newpoolsize)
+          expect(provider).to receive(:vms_in_pool).with(pool).and_return([])
+        end
+
+        it 'should change the pool size configuration' do
+          subject._check_pool(config[:pools][0],provider)
+
+          expect(config[:pools][0]['size']).to be(newpoolsize)
+        end
+      end
+
       context 'when a pool template is updating' do
         before(:each) do
           redis.hset('vmpooler__config__updating', pool, 1)
@@ -2964,10 +2980,10 @@ EOT
       context 'when an excess number of ready vms exist' do
 
         before(:each) do
-          expect(provider).to receive(:vms_in_pool).with(pool).and_return([])
           allow(redis).to receive(:scard)
           expect(redis).to receive(:scard).with("vmpooler__ready__#{pool}").and_return(1)
           expect(redis).to receive(:scard).with("vmpooler__pending__#{pool}").and_return(1)
+          expect(provider).to receive(:vms_in_pool).with(pool).and_return([])
         end
 
         it 'should call remove_excess_vms' do
