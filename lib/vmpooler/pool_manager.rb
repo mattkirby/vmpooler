@@ -613,11 +613,11 @@ module Vmpooler
           difference = ready - pool['size']
           difference.times do
             next_vm = $redis.spop("vmpooler__ready__#{pool['name']}")
-            move_vm_queue(pool, next_vm, 'ready', 'completed', "removing VMs in excess of configured size")
+            move_vm_queue(pool['name'], next_vm, 'ready', 'completed', "removing VMs in excess of configured size")
           end
           if total > ready
             $redis.smembers("vmpooler__pending__#{pool['name']}").each do |vm|
-              move_vm_queue(pool, vm, 'pending', 'completed', "removing VMs in excess of configured size")
+              move_vm_queue(pool['name'], vm, 'pending', 'completed', "removing VMs in excess of configured size")
             end
           end
         end
