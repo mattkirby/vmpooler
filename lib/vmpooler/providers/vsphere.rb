@@ -199,12 +199,8 @@ module Vmpooler
 
             # Get the template VM object
             raise("Pool #{pool_name} did not specify a full path for the template for the provider #{name}") unless template_path =~ /\//
-            propSpecs = {
-              :entity => self,
-              :inventoryPath => "#{target_datacenter_name}/vm/#{pool['template']}"
-            }
-            template_vm_object = connection.searchIndex.FindByInventoryPath(propSpecs)
-            raise("Pool #{pool_name} specifies a template VM of #{pool['template']} which does not exist for the provider #{name}") if template_vm_object.nil?
+
+            template_vm_object = find_template_vm(pool, connection)
 
             # Annotate with creation time, origin template, etc.
             # Add extraconfig options that can be queried by vmtools
@@ -962,19 +958,25 @@ module Vmpooler
           folder_object
         end
 
+        def find_template_vm(pool, connection)
+          datacenter = get_target_datacenter_from_config(pool['name'])
+          raise('cannot find datacenter') if datacenter.nil?
+
+          propSpecs = {
+            :entity => self,
+            :inventoryPath => "#{datacenter}/vm/#{pool['template']}"
+          }
+
+          template_vm_object = connection.searchIndex.FindByInventoryPath(propSpecs)
+          raise("Pool #{pool['name']} specifies a template VM of #{pool['template']} which does not exist for the provider #{name}") if template_vm_object.nil?
+
+          template_vm_object
+        end
+
         def create_template_delta_disks(pool)
           @connection_pool.with_metrics do |pool_object|
             connection = ensured_vsphere_connection(pool_object)
-            datacenter = get_target_datacenter_from_config(pool['name'])
-            raise('cannot find datacenter') if datacenter.nil?
-
-            propSpecs = {
-              :entity => self,
-              :inventoryPath => "#{datacenter}/vm/#{pool['template']}"
-            }
-
-            template_vm_object = connection.searchIndex.FindByInventoryPath(propSpecs)
-            raise('cannot find template object') if template_vm_object.nil?
+            template_vm_object = find_template_vm(pool, connection)
 
             template_vm_object.add_delta_disk_layer_on_all_disks
           end
