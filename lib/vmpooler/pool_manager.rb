@@ -187,9 +187,9 @@ module Vmpooler
       end
     end
 
-    def move_vm_queue(pool, vm, queue_from, queue_to, msg)
+    def move_vm_queue(pool, vm, queue_from, queue_to, msg = nil)
       $redis.smove("vmpooler__#{queue_from}__#{pool}", "vmpooler__#{queue_to}__#{pool}", vm)
-      $logger.log('d', "[!] [#{pool}] '#{vm}' #{msg}")
+      $logger.log('d', "[!] [#{pool}] '#{vm}' #{msg}") if msg
     end
 
     # Clone a VM
@@ -613,11 +613,11 @@ module Vmpooler
           difference = ready - pool['size']
           difference.times do
             next_vm = $redis.spop("vmpooler__ready__#{pool['name']}")
-            move_vm_queue(pool['name'], next_vm, 'ready', 'completed', "removing VMs in excess of configured size")
+            move_vm_queue(pool['name'], next_vm, 'ready', 'completed')
           end
           if total > ready
             $redis.smembers("vmpooler__pending__#{pool['name']}").each do |vm|
-              move_vm_queue(pool['name'], vm, 'pending', 'completed', "removing VMs in excess of configured size")
+              move_vm_queue(pool['name'], vm, 'pending', 'completed')
             end
           end
         end
