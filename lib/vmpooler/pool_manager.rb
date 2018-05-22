@@ -525,7 +525,6 @@ module Vmpooler
 
       loop_delay_decay = 2.0 if loop_delay_decay <= 1.0
       loop_delay_max = loop_delay_min if loop_delay_max.nil? || loop_delay_max < loop_delay_min
-      $redis.hset('vmpooler__template', pool['name'], pool['template'])
 
       $threads[pool['name']] = Thread.new do
         begin
@@ -556,7 +555,24 @@ module Vmpooler
       end
     end
 
+    def prepare_template(pool, provider)
+      if $config[:config]['create_template_delta_disks']
+        # Ensure templates are evaluated for delta disk creation on startup
+        return if $redis.hget('vmpooler__config__updating', pool['name'])
+        unless $redis.hget('vmpooler__template__prepared', pool['name'])
+          begin
+            $redis.hset('vmpooler__config__updating', pool['name'], 1)
+            provider.create_template_delta_disks(pool)
+            $redis.hset('vmpooler__template__prepared', pool['name'], pool['template'])
+          ensure
+            $redis.hdel('vmpooler__config__updating', pool['name'])
+          end
+        end
+      end
+    end
+
     def update_pool_template(pool, provider)
+      $redis.hset('vmpooler__template', pool['name'], pool['template']) unless $redis.hget('vmpooler__template', pool['name'])
       return unless $redis.hget('vmpooler__config__template', pool['name'])
       unless $redis.hget('vmpooler__config__template', pool['name']) == $redis.hget('vmpooler__template', pool['name'])
         # Ensure we are only updating a template once
@@ -736,10 +752,12 @@ module Vmpooler
         end
       end
 
+      # Create template delta disks
+      prepare_template(pool, provider)
+
       # UPDATE TEMPLATE
       # Check to see if a pool template change has been made via the configuration API
-      # Since check_pool runs in a loop it does not
-      # otherwise identify this change when running
+      # Since check_pool runs in a loop it does not otherwise identify this change when running
       update_pool_template(pool, provider)
 
       # REPOPULATE

@@ -962,27 +962,6 @@ module Vmpooler
           folder_object
         end
 
-        def create_link_spec(disk)
-          linkSpec = {
-            :deviceChange => [
-              {
-                :operation => :remove,
-                :device => disk
-              },
-              {
-                :operation => :add,
-                :fileOperation => :create,
-                :device => disk.dup.tap { |x|
-                  x.backing = x.backing.dup
-                  x.backing.fileName = "[#{disk.backing.datastore.name}]"
-                  x.backing.parent = disk.backing
-                }
-              }
-            ]
-          }
-          linkSpec
-        end
-
         def create_template_delta_disks(pool)
           @connection_pool.with_metrics do |pool_object|
             connection = ensured_vsphere_connection(pool_object)
@@ -993,23 +972,11 @@ module Vmpooler
               :entity => self,
               :inventoryPath => "#{datacenter}/vm/#{pool['template']}"
             }
-            template_object = connection.searchIndex.FindByInventoryPath(propSpecs)
-            raise('cannot find template object') if template_object.nil?
 
-            begin
-              disks = template_object.config.hardware.device.grep( RbVmomi::VIM::VirtualDisk )
-            rescue
-              next
-            end
+            template_vm_object = connection.searchIndex.FindByInventoryPath(propSpecs)
+            raise('cannot find template object') if template_vm_object.nil?
 
-            begin
-              disks.select { |d| d.backing.parent == nil }.each do |disk|
-                linkSpec = create_link_spec(disk)
-                template_object.ReconfigVM_Task( :spec => linkSpec ).wait_for_completion
-              end
-            rescue => _err
-              raise(_err)
-            end
+            template_vm_object.add_delta_disk_layer_on_all_disks
           end
         end
       end
