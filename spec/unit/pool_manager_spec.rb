@@ -2039,6 +2039,7 @@ EOT
         expect(redis).to receive(:set).with('vmpooler__tasks__clone', 0).once
         expect(redis).to receive(:del).with('vmpooler__migration').once
         expect(redis).to receive(:del).with('vmpooler__config__updating').once
+        expect(redis).to receive(:del).with('vmpooler__template__prepared').once
 
         subject.execute!(maxloop,0)
       end

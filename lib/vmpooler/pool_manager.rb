@@ -833,6 +833,8 @@ module Vmpooler
       $redis.del('vmpooler__migration')
       # Clear out any configuration changes in flight that were interrupted
       $redis.del('vmpooler__config__updating')
+      # Ensure template deltas are created on each startup
+      $redis.del('vmpooler__template__prepared')
 
       # Copy vSphere settings to correct location.  This happens with older configuration files
       if !$config[:vsphere].nil? && ($config[:providers].nil? || $config[:providers][:vsphere].nil?)
