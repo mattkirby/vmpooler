@@ -1599,11 +1599,6 @@ EOT
       end
     end
 
-#     it 'should log a message for the template delta creation' do
-#
-#       subject.update_pool_template(config[:pools][0])
-#     end
-
     context 'when already updating' do
       before(:each) do
         redis.hset('vmpooler__template', pool, template)
@@ -1658,6 +1653,66 @@ EOT
         expect(subject).to receive(:move_vm_queue).exactly(3).times
 
         subject.remove_excess_vms(config[:pools][0], provider, 2, 5)
+      end
+    end
+  end
+
+  describe 'prepare_template' do
+    let(:config) { YAML.load(<<-EOT
+---
+:config:
+  create_template_delta_disks: true
+:providers:
+  :mock:
+:pools:
+  - name: '#{pool}'
+    size: 1
+    template: 'templates/pool1'
+EOT
+      )
+    }
+
+    it 'should return if a pool configuration is updating' do
+      redis.hset('vmpooler__config__updating', pool, 1)
+
+      expect(subject.prepare_template(config[:pools][0], provider)).to be_nil
+    end
+
+    it 'should return when a template is prepared' do
+      redis.hset('vmpooler__template__prepared', pool, pool['template'])
+
+      expect(subject.prepare_template(config[:pools][0], provider)).to be_nil
+    end
+
+    context 'when creating the template delta disks' do
+      before(:each) do
+        allow(redis).to receive(:hset)
+        allow(redis).to receive(:hdel)
+        allow(provider).to receive(:create_template_delta_disks)
+      end
+
+      it 'should mark the pool as updating' do
+        expect(redis).to receive(:hset).with('vmpooler__config__updating', pool, 1)
+
+        subject.prepare_template(config[:pools][0], provider)
+      end
+
+      it 'should run create template delta disks' do
+        expect(provider).to receive(:create_template_delta_disks).with(config[:pools][0])
+
+        subject.prepare_template(config[:pools][0], provider)
+      end
+
+      it 'should mark the template as prepared' do
+        expect(redis).to receive(:hset).with('vmpooler__template__prepared', pool, config[:pools][0]['template'])
+
+        subject.prepare_template(config[:pools][0], provider)
+      end
+
+      it' should mark the configuration as completed' do
+        expect(redis).to receive(:hdel).with('vmpooler__config__updating', pool)
+
+        subject.prepare_template(config[:pools][0], provider)
       end
     end
   end

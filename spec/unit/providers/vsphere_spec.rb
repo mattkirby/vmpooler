@@ -3571,5 +3571,39 @@ EOT
     end
   end
 
+  describe '#create_template_delta_disks' do
 
+    before(:each) do
+      allow(subject).to receive(:connect_to_vsphere).and_return(connection)
+    end
+
+    it 'should raise an error when the datacenter cannot be found' do
+      config[:providers][:vsphere]['datacenter'] = nil
+
+      expect{ subject.create_template_delta_disks(config[:pools][0]) }.to raise_error('cannot find datacenter')
+    end
+
+    it 'should raise an error when the template specified cannot be found' do
+      expect(connection.searchIndex).to receive(:FindByInventoryPath).and_return(nil)
+
+      expect{ subject.create_template_delta_disks(config[:pools][0]) }.to raise_error('cannot find template object')
+    end
+
+    context 'with a template VM found' do
+      let(:template_object) { mock_RbVmomi_VIM_VirtualMachine({
+          :name => vmname,
+        })
+      }
+
+      before(:each) do
+        expect(connection.searchIndex).to receive(:FindByInventoryPath).and_return(template_object)
+      end
+
+      it 'should reconfigure the VM creating delta disks' do
+        expect(template_object).to receive(:add_delta_disk_layer_on_all_disks)
+
+        subject.create_template_delta_disks(config[:pools][0])
+      end
+    end
+  end
 end
