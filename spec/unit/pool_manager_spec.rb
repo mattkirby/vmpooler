@@ -681,7 +681,7 @@ EOT
       before(:each) do
         config[:redis] = nil
       end
-      
+
       it 'should raise an error' do
         expect{ subject._destroy_vm(vm,pool,provider) }.to raise_error(NoMethodError)
       end
@@ -730,6 +730,20 @@ EOT
         expect(metrics).to receive(:timing).with("destroy.#{pool}", String).exactly(0).times
 
         expect{ subject._destroy_vm(vm,pool,provider) }.to raise_error(/MockError/)
+      end
+    end
+
+    context 'when the VM is already being destroyed' do
+      let(:mutex) { Mutex.new }
+      before(:each) do
+        mutex.lock
+        expect(subject).to receive(:vm_mutex).with(vm).and_return(mutex)
+      end
+
+      it 'should return' do
+        expect(redis).not_to receive(:srem)
+
+        expect(subject._destroy_vm(vm,pool,provider)).to eq(nil)
       end
     end
   end

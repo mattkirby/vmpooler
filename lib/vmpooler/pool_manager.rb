@@ -24,6 +24,8 @@ module Vmpooler
 
       # Pool mutex
       @reconfigure_pool = {}
+
+      @vm_mutex = {}
     end
 
     def config
@@ -251,20 +253,24 @@ module Vmpooler
     end
 
     def _destroy_vm(vm, pool, provider)
-      $redis.srem('vmpooler__completed__' + pool, vm)
-      $redis.hdel('vmpooler__active__' + pool, vm)
-      $redis.hset('vmpooler__vm__' + vm, 'destroy', Time.now)
+      mutex = vm_mutex(vm)
+      return if mutex.locked?
+      mutex.synchronize do
+        $redis.srem('vmpooler__completed__' + pool, vm)
+        $redis.hdel('vmpooler__active__' + pool, vm)
+        $redis.hset('vmpooler__vm__' + vm, 'destroy', Time.now)
 
-      # Auto-expire metadata key
-      $redis.expire('vmpooler__vm__' + vm, ($config[:redis]['data_ttl'].to_i * 60 * 60))
+        # Auto-expire metadata key
+        $redis.expire('vmpooler__vm__' + vm, ($config[:redis]['data_ttl'].to_i * 60 * 60))
 
-      start = Time.now
+        start = Time.now
 
-      provider.destroy_vm(pool, vm)
+        provider.destroy_vm(pool, vm)
 
-      finish = format('%.2f', Time.now - start)
-      $logger.log('s', "[-] [#{pool}] '#{vm}' destroyed in #{finish} seconds")
-      $metrics.timing("destroy.#{pool}", finish)
+        finish = format('%.2f', Time.now - start)
+        $logger.log('s', "[-] [#{pool}] '#{vm}' destroyed in #{finish} seconds")
+        $metrics.timing("destroy.#{pool}", finish)
+      end
     end
 
     def create_vm_disk(pool_name, vm, disk_size, provider)
@@ -560,6 +566,10 @@ module Vmpooler
 
     def pool_mutex(poolname)
       mutex = @reconfigure_pool[poolname] || @reconfigure_pool[poolname] = Mutex.new
+    end
+
+    def vm_mutex(vmname)
+      mutex = @vm_mutex[vmname] || @vm_mutex[vmname] = Mutex.new
     end
 
     def set_pool_template(pool)
