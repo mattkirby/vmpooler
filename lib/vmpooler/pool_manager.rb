@@ -809,7 +809,6 @@ module Vmpooler
               begin
                 $redis.incr('vmpooler__tasks__clone')
                 pool_check_response[:cloned_vms] += 1
-                $logger.log('s', "[*] [#{pool['name']}] going to clone using template #{pool['template']}")
                 clone_vm(pool, provider)
               rescue => err
                 $logger.log('s', "[!] [#{pool['name']}] clone failed during check_pool with an error: #{err}")
