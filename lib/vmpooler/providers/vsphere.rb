@@ -465,9 +465,10 @@ module Vmpooler
 
           vmdk_datastore = find_datastore(datastore, connection, datacentername)
           raise("Datastore '#{datastore}' does not exist in datacenter '#{datacentername}'") if vmdk_datastore.nil?
-          vmdk_file_name = "#{vm['name']}/#{vm['name']}_#{find_vmdks(vm['name'], datastore, connection, datacentername).length + 1}.vmdk"
 
           controller = find_disk_controller(vm)
+          disk_unit_number = find_disk_unit_number(vm, controller)
+          vmdk_file_name = "#{vm['name']}/#{vm['name']}_#{disk_unit_number}.vmdk"
 
           vmdk_spec = RbVmomi::VIM::FileBackedVirtualDiskSpec(
             capacityKb: size.to_i * 1024 * 1024,
