@@ -623,8 +623,9 @@ module Vmpooler
       if total
         unless total == 0
           mutex = pool_mutex(pool['name'])
-          mutex.synchronize do
-            if total > pool['size']
+          if ready > pool['size']
+            return if mutex.locked?
+            mutex.synchronize do
               difference = ready - pool['size']
               difference.times do
                 next_vm = $redis.spop("vmpooler__ready__#{pool['name']}")

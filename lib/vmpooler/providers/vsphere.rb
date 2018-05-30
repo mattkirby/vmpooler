@@ -198,7 +198,7 @@ module Vmpooler
             target_datacenter_name = get_target_datacenter_from_config(pool_name)
 
             # Get the template VM object
-            raise("Pool #{pool_name} did not specify a full path for the template for the provider #{name}") unless template_path =~ /\//
+            raise("Pool #{pool_name} did not specify a full path for the template for the provider #{name}") unless valid_template_path? template_path
 
             template_vm_object = find_template_vm(pool, connection)
 
@@ -935,6 +935,13 @@ module Vmpooler
 
             template_vm_object.add_delta_disk_layer_on_all_disks
           end
+        end
+
+        def valid_template_path?(template)
+          return false unless template.include?('/')
+          return false if template[0] == '/'
+          return false if template[-1] == '/'
+          return true
         end
       end
     end

@@ -586,6 +586,8 @@ module Vmpooler
       payload.each do |pool, template|
         invalid << pool unless pool_exists?(pool)
         invalid << pool unless template.include? '/'
+        invalid << pool if template[0] == '/'
+        invalid << pool if template[-1] == '/'
       end
       invalid
     end
