@@ -106,6 +106,30 @@ describe Vmpooler::API::V1 do
 
         expect(last_response.body).to eq(JSON.pretty_generate(expected))
       end
+
+      it 'fails when a template starts with /' do
+        post "#{prefix}/config/pooltemplate", '{"pool1":"/template1"}'
+        expect_json(ok = false, http = 400)
+
+        expected = {
+          ok: false,
+          bad_templates: ['pool1']
+        }
+
+        expect(last_response.body).to eq(JSON.pretty_generate(expected))
+      end
+
+      it 'fails when a template ends with /' do
+        post "#{prefix}/config/pooltemplate", '{"pool1":"template1/"}'
+        expect_json(ok = false, http = 400)
+
+        expected = {
+          ok: false,
+          bad_templates: ['pool1']
+        }
+
+        expect(last_response.body).to eq(JSON.pretty_generate(expected))
+      end
     end
 
     describe 'POST /config/poolsize' do

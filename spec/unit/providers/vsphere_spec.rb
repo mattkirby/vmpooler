@@ -306,6 +306,26 @@ EOT
       end
     end
 
+    context 'Given a template that starts with /' do
+      before(:each) do
+        config[:pools][0]['template'] = '/bad_template'
+      end
+
+      it 'should raise an error' do
+        expect{ subject.create_vm(poolname, vmname) }.to raise_error(/did not specify a full path for the template/)
+      end
+    end
+
+    context 'Given a template that ends with /' do
+      before(:each) do
+        config[:pools][0]['template'] = 'bad_template/'
+      end
+
+      it 'should raise an error' do
+        expect{ subject.create_vm(poolname, vmname) }.to raise_error(/did not specify a full path for the template/)
+      end
+    end
+
     context 'Given a template VM that does not exist' do
       before(:each) do
         config[:pools][0]['template'] = 'Templates/missing_template'
@@ -3593,6 +3613,25 @@ EOT
       expect(connection.searchIndex).to receive(:FindByInventoryPath).and_return(vm_object)
 
       subject.find_template_vm(config[:pools][0],connection)
+    end
+  end
+
+  describe 'valid_template_path?' do
+
+    it 'should return true with a valid template path' do
+      expect(subject.valid_template_path?('test/template')).to eq(true)
+    end
+
+    it 'should return false when no / is found' do
+      expect(subject.valid_template_path?('testtemplate')).to eq(false)
+    end
+
+    it 'should return false when template path begins with /' do
+      expect(subject.valid_template_path?('/testtemplate')).to eq(false)
+    end
+
+    it 'should return false when template path ends with /' do
+      expect(subject.valid_template_path?('testtemplate/')).to eq(false)
     end
   end
 
