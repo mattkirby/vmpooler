@@ -1664,10 +1664,9 @@ EOT
       it 'should remove excess pending vms' do
         create_pending_vm(pool,'vm1')
         create_pending_vm(pool,'vm2')
-        create_pending_vm(pool,'vm3')
         expect(subject).to receive(:move_vm_queue).exactly(3).times
 
-        subject.remove_excess_vms(config[:pools][0], provider, 2, 5)
+        subject.remove_excess_vms(config[:pools][0], provider, 3, 5)
       end
     end
   end
