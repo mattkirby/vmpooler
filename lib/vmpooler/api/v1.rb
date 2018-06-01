@@ -901,8 +901,14 @@ module Vmpooler
         sync_pool_sizes
         sync_pool_templates
 
+        pool_configuration = []
+        pools.each do |pool|
+          pool['template_ready'] = template_ready?(pool, backend)
+          pool_configuration << pool
+        end
+
         result = {
-          pool_configuration: pools,
+          pool_configuration: pool_configuration,
           status: {
             ok: true
           }

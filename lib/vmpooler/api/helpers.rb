@@ -388,6 +388,12 @@ module Vmpooler
         pools_hash
       end
 
+      def template_ready?(pool, backend)
+        prepared_template = backend.hget('vmpooler__template__prepared', pool['name'])
+        return false if prepared_template.nil?
+        return true if pool['template'] == prepared_template
+        return false
+      end
     end
   end
 end

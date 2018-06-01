@@ -1524,6 +1524,8 @@ EOT
     let(:config) {
       YAML.load(<<-EOT
 ---
+:config:
+  create_template_delta_disks: true
 :pools:
   - name: #{pool}
     template: "#{template}"
@@ -1538,52 +1540,53 @@ EOT
       redis.del('vmpooler__config__updating')
     end
 
-    it 'returns when vmpooler config template is not set' do
-      expect(subject.update_pool_template(config[:pools][0], provider)).to be_nil
-    end
-
-    context 'with template that requires no change' do
-      before(:each) do
-        redis.hset('vmpooler__template', pool, template)
-        redis.hset('vmpooler__config__template', pool, template)
-      end
-
-      it 'should return' do
-        expect(subject.update_pool_template(config[:pools][0], provider)).to be_nil
-      end
-    end
-
     context 'with a pool that requires an update' do
       before(:each) do
-        redis.hset('vmpooler__template', pool, template)
+        redis.hset('vmpooler__template__prepared', pool, template)
         redis.hset('vmpooler__config__template', pool, new_template)
         allow(logger).to receive(:log)
         allow(redis).to receive(:hset)
+        #expect(subject).to receive(:prepare_template).with(config[:pools][0], provider)
         expect(provider).to receive(:create_template_delta_disks).with(config[:pools][0])
       end
 
       it 'should update the configuration value' do
-        expect(redis).to receive(:hset).with('vmpooler__template', pool, new_template)
+        expect(redis).to receive(:hset).with('vmpooler__template__prepared', pool, new_template)
 
-        subject.update_pool_template(config[:pools][0], provider)
+        subject.update_pool_template(config[:pools][0], provider, new_template, template)
       end
 
       it 'should log a message for updating the template' do
         expect(logger).to receive(:log).with('s', "[*] [#{pool}] template updated from #{template} to #{new_template}")
 
-        subject.update_pool_template(config[:pools][0], provider)
+        subject.update_pool_template(config[:pools][0], provider, new_template, template)
       end
 
       it 'should log messages for creating template deltas' do
-        expect(logger).to receive(:log).with('s', "[*] [#{pool}] creating template deltas")
-        expect(logger).to receive(:log).with('s', "[*] [#{pool}] template deltas have been created")
+        expect(logger).to receive(:log).with('s', "[*] [#{pool}] preparing pool template for deployment")
+        expect(logger).to receive(:log).with('s', "[*] [#{pool}] is ready for use")
 
-        subject.update_pool_template(config[:pools][0], provider)
+        subject.update_pool_template(config[:pools][0], provider, new_template, template)
       end
     end
 
     context 'with ready and pending vms' do
       let(:vmname) { 'vm2' }
+      let(:provider_name) { 'mock_provider' }
+      let(:config) { YAML.load(<<-EOT
+---
+:config:
+  create_template_delta_disks: true
+:providers:
+  :mock:
+:pools:
+  - name: '#{pool}'
+    size: 1
+    provider: #{provider_name}
+EOT
+        )
+      }
+
       before(:each) do
         create_ready_vm(pool,vmname)
         create_pending_vm(pool,vmname)
@@ -1591,46 +1594,31 @@ EOT
         redis.hset('vmpooler__config__template', pool, new_template)
         allow(logger).to receive(:log)
         allow(redis).to receive(:smove)
-        expect(provider).to receive(:create_template_delta_disks).with(config[:pools][0])
+        expect(subject).to receive(:prepare_template).with(config[:pools][0], provider)
       end
 
       it 'should log a message for removing ready vms' do
         expect(logger).to receive(:log).with('s', "[*] [#{pool}] removing ready instances")
 
-        subject.update_pool_template(config[:pools][0], provider)
+        subject.update_pool_template(config[:pools][0], provider, new_template, template)
       end
 
       it 'should log a message for removing pending vms' do
         expect(logger).to receive(:log).with('s', "[*] [#{pool}] removing pending instances")
 
-        subject.update_pool_template(config[:pools][0], provider)
+        subject.update_pool_template(config[:pools][0], provider, new_template, template)
       end
 
       it 'should remove ready vms' do
         expect(redis).to receive(:smove).with("vmpooler__ready__#{pool}", "vmpooler__completed__#{pool}", vmname)
 
-        subject.update_pool_template(config[:pools][0], provider)
+        subject.update_pool_template(config[:pools][0], provider, new_template, template)
       end
 
       it 'should remove pending vms' do
         expect(redis).to receive(:smove).with("vmpooler__pending__#{pool}", "vmpooler__completed__#{pool}", vmname)
 
-        subject.update_pool_template(config[:pools][0], provider)
-      end
-    end
-
-    context 'when already updating' do
-      let(:mutex) { Mutex.new }
-      before(:each) do
-        redis.hset('vmpooler__template', pool, template)
-        redis.hset('vmpooler__config__template', pool, new_template)
-        expect(subject).to receive(:pool_mutex).with(pool).and_return(mutex)
-      end
-
-      it 'should return' do
-        mutex.lock
-
-        expect(subject.update_pool_template(config[:pools][0], provider)).to be_nil
+        subject.update_pool_template(config[:pools][0], provider, new_template, template)
       end
     end
   end
@@ -1686,7 +1674,6 @@ EOT
   end
 
   describe 'prepare_template' do
-    let(:mutex) { Mutex.new }
     let(:config) { YAML.load(<<-EOT
 ---
 :config:
@@ -1701,31 +1688,11 @@ EOT
       )
     }
 
-    it 'should return if a pool configuration is updating' do
-      expect(subject).to receive(:pool_mutex).with(pool).and_return(mutex)
-      mutex.lock
-
-      expect(subject.prepare_template(config[:pools][0], provider)).to be_nil
-    end
-
-    it 'should return when a template is prepared' do
-      redis.hset('vmpooler__template__prepared', pool, pool['template'])
-
-      expect(subject.prepare_template(config[:pools][0], provider)).to be_nil
-    end
-
     context 'when creating the template delta disks' do
       before(:each) do
         allow(redis).to receive(:hset)
         allow(redis).to receive(:hdel)
         allow(provider).to receive(:create_template_delta_disks)
-        expect(subject).to receive(:pool_mutex).with(pool).and_return(mutex)
-      end
-
-      it 'should mark the pool as updating' do
-        mutex.lock
-
-        subject.prepare_template(config[:pools][0], provider)
       end
 
       it 'should run create template delta disks' do
