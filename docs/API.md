@@ -5,7 +5,7 @@
 4. [Add disks](#adddisks)
 5. [VM snapshots](#vmsnapshots)
 6. [Status and metrics](#statusmetrics)
-7. [Pool configuration changes](#poolconfig)
+7. [Pool configuration](#poolconfig)
 
 ### API <a name="API"></a>
 
@@ -550,7 +550,38 @@ $ curl -G -d 'from=2015-03-10' -d 'to=2015-03-11' --url vmpooler.company.com/api
 }
 ```
 
-#### Changing configuration via API <a name="poolconfig"></a>
+#### Managing pool configuration via API <a name="poolconfig"></a>
+
+##### GET /config
+
+Returns the running pool configuration
+
+Responses:
+* 200 - OK
+* 404 - No configuration found
+```
+$ curl https://vmpooler.company.com/api/v1/config
+```
+```json
+{
+  "pool_configuration": [
+    {
+      "name": "redhat-7-x86_64",
+      "template": "templates/redhat-7.2-x86_64-0.0.3",
+      "folder": "vmpooler/redhat-7-x86_64",
+      "datastore": "stor1",
+      "size": 1,
+      "datacenter": "dc1",
+      "provider": "vsphere",
+      "capacity": 1,
+      "major": "redhat"
+    }
+  ],
+  "status": {
+    "ok": true
+  }
+}
+```
 
 ##### POST /config/poolsize
 
@@ -566,7 +597,8 @@ An authentication token is required in order to change pool configuration when a
 Responses:
 * 200 - No changes required
 * 201 - Changes made on at least one pool with changes requested
-* 404 - An error was encountered while evaluating requested changes
+* 400 - An invalid configuration was provided causing requested changes to fail
+* 404 - An unknown error occurred
 ```
 $ curl -X POST -H "Content-Type: application/json" -d '{"debian-7-i386":"2","debian-7-x86_64":"1"}' --url https://vmpooler.company.com/api/v1/config/poolsize
 ```
@@ -596,7 +628,8 @@ An authentication token is required in order to change pool configuration when a
 Responses:
 * 200 - No changes required
 * 201 - Changes made on at least one pool with changes requested
-* 404 - An error was encountered while evaluating requested changes
+* 400 - An invalid configuration was provided causing requested changes to fail
+* 404 - An unknown error occurred
 ```
 $ curl -X POST -H "Content-Type: application/json" -d '{"debian-7-i386":"templates/debian-7-i386"}' --url https://vmpooler.company.com/api/v1/config/pooltemplate
 ```
