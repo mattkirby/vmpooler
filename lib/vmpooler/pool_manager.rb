@@ -634,14 +634,8 @@ module Vmpooler
     end
 
     def update_pool_template(pool, provider, configured_template, prepared_template)
-      if configured_template.nil?
-        $logger.log('s', 'new_template is nil')
-        return
-      end
-      if configured_template == prepared_template
-        $logger.log('s', "template update #{configured_template} is already running as #{prepared_template}")
-        return
-      end
+      return if configured_template.nil?
+      return if configured_template == prepared_template
       pool['template'] = configured_template
       $logger.log('s', "[*] [#{pool['name']}] template updated from #{prepared_template} to #{configured_template}")
       # Remove all ready and pending VMs so new instances are created from the new template
