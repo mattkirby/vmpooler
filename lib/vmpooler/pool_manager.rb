@@ -505,6 +505,10 @@ module Vmpooler
         initial_ready_size = $redis.scard("vmpooler__ready__#{options[:poolname]}")
       end
 
+      if options[:pool_template_change]
+        initial_template = $redis.hget('vmpooler__template__prepared', options[:poolname])
+      end
+
       loop do
         sleep(1)
         break if time_passed?(:exit_by, exit_by)
@@ -522,7 +526,7 @@ module Vmpooler
           if options[:pool_template_change]
             configured_template = $redis.hget('vmpooler__config__template', options[:poolname])
             if configured_template
-              break unless $redis.hget('vmpooler__template__prepared', options[:poolname]) == configured_template
+              break unless initial_template == configured_template
             end
           end
 
@@ -608,12 +612,11 @@ module Vmpooler
         mutex.synchronize do
           prepare_template(pool, provider)
         end
-      else
-        return if configured_template.nil?
-        return if configured_template == prepared_template
-        mutex.synchronize do
-          update_pool_template(pool, provider, configured_template, prepared_template)
-        end
+      end
+      return if configured_template.nil?
+      return if configured_template == prepared_template
+      mutex.synchronize do
+        update_pool_template(pool, provider, configured_template, prepared_template)
       end
     end
 
@@ -634,8 +637,6 @@ module Vmpooler
     end
 
     def update_pool_template(pool, provider, configured_template, prepared_template)
-      return if configured_template.nil?
-      return if configured_template == prepared_template
       pool['template'] = configured_template
       $logger.log('s', "[*] [#{pool['name']}] template updated from #{prepared_template} to #{configured_template}")
       # Remove all ready and pending VMs so new instances are created from the new template
@@ -647,25 +648,34 @@ module Vmpooler
     end
 
     def remove_excess_vms(pool, provider, ready, total)
-      if total
-        unless total == 0
-          mutex = pool_mutex(pool['name'])
-          if ready > pool['size']
-            return if mutex.locked?
-            mutex.synchronize do
-              difference = ready - pool['size']
-              difference.times do
-                next_vm = $redis.spop("vmpooler__ready__#{pool['name']}")
-                move_vm_queue(pool['name'], next_vm, 'ready', 'completed')
-              end
-              if total > ready
-                $redis.smembers("vmpooler__pending__#{pool['name']}").each do |vm|
-                  move_vm_queue(pool['name'], vm, 'pending', 'completed')
-                end
-              end
-            end
+      return if total.nil?
+      return if total == 0
+      mutex = pool_mutex(pool['name'])
+      return if mutex.locked?
+      return unless ready > pool['size']
+      mutex.synchronize do
+        difference = ready - pool['size']
+        difference.times do
+          next_vm = $redis.spop("vmpooler__ready__#{pool['name']}")
+          move_vm_queue(pool['name'], next_vm, 'ready', 'completed')
+        end
+        if total > ready
+          $redis.smembers("vmpooler__pending__#{pool['name']}").each do |vm|
+            move_vm_queue(pool['name'], vm, 'pending', 'completed')
           end
         end
+      end
+    end
+
+    def update_pool_size(pool)
+      mutex = pool_mutex(pool['name'])
+      return if mutex.locked?
+      poolsize = $redis.hget('vmpooler__config__poolsize', pool['name'])
+      return if poolsize.nil?
+      poolsize = Integer(poolsize)
+      return if poolsize == pool['size']
+      mutex.synchronize do
+        pool['size'] = poolsize
       end
     end
 
@@ -822,11 +832,7 @@ module Vmpooler
         # Check to see if a pool size change has been made via the configuration API
         # Since check_pool runs in a loop it does not
         # otherwise identify this change when running
-        if $redis.hget('vmpooler__config__poolsize', pool['name'])
-          unless $redis.hget('vmpooler__config__poolsize', pool['name']).to_i == pool['size']
-            pool['size'] = Integer($redis.hget('vmpooler__config__poolsize', pool['name']))
-          end
-        end
+        update_pool_size(pool)
 
         if total < pool['size']
           (1..(pool['size'] - total)).each do |_i|
