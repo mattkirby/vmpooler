@@ -394,6 +394,13 @@ module Vmpooler
         return true if pool['template'] == prepared_template
         return false
       end
+
+      def is_integer?(x)
+        Integer(x)
+        true
+      rescue
+        false
+      end
     end
   end
 end

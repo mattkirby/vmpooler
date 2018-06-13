@@ -576,7 +576,11 @@ module Vmpooler
       invalid = []
       payload.each do |pool, size|
         invalid << pool unless pool_exists?(pool)
-        Integer(size) rescue invalid << pool
+        unless is_integer?(size)
+          invalid << pool
+          next
+        end
+        invalid << pool unless Integer(size) >= 0
       end
       invalid
     end
@@ -842,24 +846,28 @@ module Vmpooler
       content_type :json
       result = { 'ok' => false }
 
-      need_token! if Vmpooler::API.settings.config[:auth]
+      if config['experimental_features']
+        need_token! if Vmpooler::API.settings.config[:auth]
 
-      payload = JSON.parse(request.body.read)
+        payload = JSON.parse(request.body.read)
 
-      if payload
-        invalid = invalid_template_or_size(payload)
-        if invalid.empty?
-          result = update_pool_size(payload)
-        else
-          invalid.each do |bad_template|
-            metrics.increment("config.invalid.#{bad_template}")
+        if payload
+          invalid = invalid_template_or_size(payload)
+          if invalid.empty?
+            result = update_pool_size(payload)
+          else
+            invalid.each do |bad_template|
+              metrics.increment("config.invalid.#{bad_template}")
+            end
+            result[:bad_templates] = invalid
+            status 400
           end
-          result[:bad_templates] = invalid
-          status 400
+        else
+          metrics.increment('config.invalid.unknown')
+          status 404
         end
       else
-        metrics.increment('config.invalid.unknown')
-        status 404
+        status 405
       end
 
       JSON.pretty_generate(result)
@@ -869,24 +877,28 @@ module Vmpooler
       content_type :json
       result = { 'ok' => false }
 
-      need_token! if Vmpooler::API.settings.config[:auth]
+      if config['experimental_features']
+        need_token! if Vmpooler::API.settings.config[:auth]
 
-      payload = JSON.parse(request.body.read)
+        payload = JSON.parse(request.body.read)
 
-      if payload
-        invalid = invalid_template_or_path(payload)
-        if invalid.empty?
-          result = update_pool_template(payload)
-        else
-          invalid.each do |bad_template|
-            metrics.increment("config.invalid.#{bad_template}")
+        if payload
+          invalid = invalid_template_or_path(payload)
+          if invalid.empty?
+            result = update_pool_template(payload)
+          else
+            invalid.each do |bad_template|
+              metrics.increment("config.invalid.#{bad_template}")
+            end
+            result[:bad_templates] = invalid
+            status 400
           end
-          result[:bad_templates] = invalid
-          status 400
+        else
+          metrics.increment('config.invalid.unknown')
+          status 404
         end
       else
-        metrics.increment('config.invalid.unknown')
-        status 404
+        status 405
       end
 
       JSON.pretty_generate(result)

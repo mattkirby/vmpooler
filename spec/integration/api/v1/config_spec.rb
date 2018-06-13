@@ -23,6 +23,7 @@ describe Vmpooler::API::V1 do
       config: {
         'site_name' => 'test pooler',
         'vm_lifetime_auth' => 2,
+        'experimental_features' => true
       },
       pools: [
         {'name' => 'pool1', 'size' => 5, 'template' => 'templates/pool1'},
@@ -130,6 +131,21 @@ describe Vmpooler::API::V1 do
 
         expect(last_response.body).to eq(JSON.pretty_generate(expected))
       end
+
+      context 'with experimental features disabled' do
+        before(:each) do
+          config[:config]['experimental_features'] = false
+        end
+
+        it 'should return 405' do
+          post "#{prefix}/config/pooltemplate", '{"pool1":"template/template1"}'
+          expect_json(ok = false, http = 405)
+
+          expected = { ok: false }
+          expect(last_response.body).to eq(JSON.pretty_generate(expected))
+        end
+      end
+
     end
 
     describe 'POST /config/poolsize' do
@@ -190,6 +206,32 @@ describe Vmpooler::API::V1 do
         }
 
         expect(last_response.body).to eq(JSON.pretty_generate(expected))
+      end
+
+      it 'fails when a negative value is provided for size' do
+        post "#{prefix}/config/poolsize", '{"pool1":"-1"}'
+        expect_json(ok = false, http = 400)
+
+        expected = {
+          ok: false,
+          bad_templates: ['pool1']
+        }
+
+        expect(last_response.body).to eq(JSON.pretty_generate(expected))
+      end
+
+      context 'with experimental features disabled' do
+        before(:each) do
+          config[:config]['experimental_features'] = false
+        end
+
+        it 'should return 405' do
+          post "#{prefix}/config/poolsize", '{"pool1":"1"}'
+          expect_json(ok = false, http = 405)
+
+          expected = { ok: false }
+          expect(last_response.body).to eq(JSON.pretty_generate(expected))
+        end
       end
     end
 
