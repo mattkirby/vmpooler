@@ -486,7 +486,6 @@ module Vmpooler
       Thread.new do
         begin
           mutex = vm_mutex(vm_name)
-          return if mutex.locked?
           mutex.synchronize do
             $redis.srem("vmpooler__migrating__#{pool_name}", vm_name)
             provider.migrate_vm(pool_name, vm_name)
