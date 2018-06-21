@@ -458,12 +458,9 @@ module Vmpooler
 
           vmdk_datastore = find_datastore(datastore, connection, datacentername)
           raise("Datastore '#{datastore}' does not exist in datacenter '#{datacentername}'") if vmdk_datastore.nil?
+          vmdk_file_name = "#{vm['name']}/#{vm['name']}_#{find_vmdks(vm['name'], datastore, connection, datacentername).length + 1}.vmdk"
 
-          datacenter = connection.serviceInstance.find_datacenter(datacentername)
           controller = find_disk_controller(vm)
-          disk_unit_number = find_disk_unit_number(vm, controller)
-          disk_count = vm.config.hardware.device.grep(RbVmomi::VIM::VirtualDisk).count
-          vmdk_file_name = "#{vm['name']}/#{vm['name']}_#{disk_count}.vmdk"
 
           vmdk_spec = RbVmomi::VIM::FileBackedVirtualDiskSpec(
             capacityKb: size.to_i * 1024 * 1024,
@@ -474,7 +471,7 @@ module Vmpooler
           vmdk_backing = RbVmomi::VIM::VirtualDiskFlatVer2BackingInfo(
             datastore: vmdk_datastore,
             diskMode: DISK_MODE,
-            fileName: "[#{datastore}] #{vmdk_file_name}"
+            fileName: "[#{vmdk_datastore.name}] #{vmdk_file_name}"
           )
 
           device = RbVmomi::VIM::VirtualDisk(
@@ -482,7 +479,7 @@ module Vmpooler
             capacityInKB: size.to_i * 1024 * 1024,
             controllerKey: controller.key,
             key: -1,
-            unitNumber: disk_unit_number
+            unitNumber: find_disk_unit_number(vm, controller)
           )
 
           device_config_spec = RbVmomi::VIM::VirtualDeviceConfigSpec(
@@ -495,8 +492,8 @@ module Vmpooler
           )
 
           connection.serviceContent.virtualDiskManager.CreateVirtualDisk_Task(
-            datacenter: datacenter,
-            name: "[#{datastore}] #{vmdk_file_name}",
+            datacenter: connection.serviceInstance.find_datacenter(datacentername),
+            name: "[#{vmdk_datastore.name}] #{vmdk_file_name}",
             spec: vmdk_spec
           ).wait_for_completion
 
@@ -803,6 +800,23 @@ module Vmpooler
           }
 
           connection.searchIndex.FindByInventoryPath(propSpecs)
+        end
+
+        def find_vmdks(vmname, datastore, connection, datacentername)
+          disks = []
+
+          vmdk_datastore = find_datastore(datastore, connection, datacentername)
+
+          vm_files = connection.serviceContent.propertyCollector.collectMultiple vmdk_datastore.vm, 'layoutEx.file'
+          vm_files.keys.each do |f|
+            vm_files[f]['layoutEx.file'].each do |l|
+              if l.name =~ /^\[#{vmdk_datastore.name}\] #{vmname}\/#{vmname}_([0-9]+).vmdk/
+                disks.push(l)
+              end
+            end
+          end
+
+          disks
         end
 
         def get_base_vm_container_from(connection)
