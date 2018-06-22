@@ -299,26 +299,29 @@ module Vmpooler
     def _create_vm_disk(pool_name, vm_name, disk_size, provider)
       raise("Invalid disk size of '#{disk_size}' passed") if disk_size.nil? || disk_size.empty? || disk_size.to_i <= 0
 
-      $logger.log('s', "[ ] [disk_manager] '#{vm_name}' is attaching a #{disk_size}gb disk")
+      mutex = vm_mutex(vm_name)
+      mutex.synchronize do
+        $logger.log('s', "[ ] [disk_manager] '#{vm_name}' is attaching a #{disk_size}gb disk")
 
-      start = Time.now
+        start = Time.now
 
-      result = provider.create_disk(pool_name, vm_name, disk_size.to_i)
+        result = provider.create_disk(pool_name, vm_name, disk_size.to_i)
 
-      finish = format('%.2f', Time.now - start)
+        finish = format('%.2f', Time.now - start)
 
-      if result
-        rdisks = $redis.hget('vmpooler__vm__' + vm_name, 'disk')
-        disks = rdisks ? rdisks.split(':') : []
-        disks.push("+#{disk_size}gb")
-        $redis.hset('vmpooler__vm__' + vm_name, 'disk', disks.join(':'))
+        if result
+          rdisks = $redis.hget('vmpooler__vm__' + vm_name, 'disk')
+          disks = rdisks ? rdisks.split(':') : []
+          disks.push("+#{disk_size}gb")
+          $redis.hset('vmpooler__vm__' + vm_name, 'disk', disks.join(':'))
 
-        $logger.log('s', "[+] [disk_manager] '#{vm_name}' attached #{disk_size}gb disk in #{finish} seconds")
-      else
-        $logger.log('s', "[+] [disk_manager] '#{vm_name}' failed to attach disk")
+          $logger.log('s', "[+] [disk_manager] '#{vm_name}' attached #{disk_size}gb disk in #{finish} seconds")
+        else
+          $logger.log('s', "[+] [disk_manager] '#{vm_name}' failed to attach disk")
+        end
+
+        result
       end
-
-      result
     end
 
     def create_vm_snapshot(pool_name, vm, snapshot_name, provider)
