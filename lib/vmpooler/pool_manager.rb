@@ -242,7 +242,7 @@ module Vmpooler
       $redis.hset("vmpooler__vm__#{vm_name}", 'template', pool_name)
     end
 
-    def _clone_vm(pool, provider)
+    def _clone_vm(pool, provider, new_vmname)
       pool_name = pool['name']
       add_vm_to_inventory(pool_name, new_vmname)
       $logger.log('d', "[ ] [#{pool_name}] Starting to clone '#{new_vmname}'")
