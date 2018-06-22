@@ -463,7 +463,8 @@ module Vmpooler
           controller = find_disk_controller(vm)
           disk_unit_number = find_disk_unit_number(vm, controller)
           disk_count = vm.config.hardware.device.grep(RbVmomi::VIM::VirtualDisk).count
-          vmdk_file_name = "#{vm['name']}/#{vm['name']}_#{disk_count}.vmdk"
+          vmdk_file_name = "#{vm['name']}/#{vm['name']}_vmpooler#{disk_count}.vmdk"
+          full_vmdk_file_name = "[#{datastore}] #{vmdk_file_name}"
 
           vmdk_spec = RbVmomi::VIM::FileBackedVirtualDiskSpec(
             capacityKb: size.to_i * 1024 * 1024,
@@ -474,7 +475,7 @@ module Vmpooler
           vmdk_backing = RbVmomi::VIM::VirtualDiskFlatVer2BackingInfo(
             datastore: vmdk_datastore,
             diskMode: DISK_MODE,
-            fileName: "[#{datastore}] #{vmdk_file_name}"
+            fileName: full_vmdk_file_name
           )
 
           device = RbVmomi::VIM::VirtualDisk(
@@ -496,7 +497,7 @@ module Vmpooler
 
           connection.serviceContent.virtualDiskManager.CreateVirtualDisk_Task(
             datacenter: datacenter,
-            name: "[#{datastore}] #{vmdk_file_name}",
+            name: full_vmdk_file_name,
             spec: vmdk_spec
           ).wait_for_completion
 
