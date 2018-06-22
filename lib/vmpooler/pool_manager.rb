@@ -209,11 +209,17 @@ module Vmpooler
       $logger.log('d', "[!] [#{pool}] '#{vm}' #{msg}") if msg
     end
 
+    def task_available?
+      return false unless $redis.get('vmpooler__tasks__clone').to_i < $config[:config]['task_limit'].to_i
+      return true
+    end
+
     # Clone a VM
     def clone_vm(pool, provider)
       Thread.new do
         begin
-          _clone_vm(pool, provider)
+          new_vmname = new_vmname($config[:config]['prefix'])
+          _clone_vm(pool, provider, new_vmname)
         rescue => err
           $logger.log('s', "[!] [#{pool['name']}] failed while cloning VM with an error: #{err}")
           raise
@@ -221,35 +227,39 @@ module Vmpooler
       end
     end
 
-    def _clone_vm(pool, provider)
-      pool_name = pool['name']
-
+    def new_vmname(prefix = nil)
       # Generate a randomized hostname
       o = [('a'..'z'), ('0'..'9')].map(&:to_a).flatten
-      new_vmname = $config[:config]['prefix'] + o[rand(25)] + (0...14).map { o[rand(o.length)] }.join
+      name = o[rand(25)] + (0...14).map { o[rand(o.length)] }.join
+      name = prefix + name if prefix
+      name
+    end
 
+    def add_vm_to_inventory(pool_name, vm_name)
       # Add VM to Redis inventory ('pending' pool)
-      $redis.sadd('vmpooler__pending__' + pool_name, new_vmname)
-      $redis.hset('vmpooler__vm__' + new_vmname, 'clone', Time.now)
-      $redis.hset('vmpooler__vm__' + new_vmname, 'template', pool_name)
+      $redis.sadd("vmpooler__pending__#{pool_name}", vm_name)
+      $redis.hset("vmpooler__vm__#{vm_name}", 'clone', Time.now)
+      $redis.hset("vmpooler__vm__#{vm_name}", 'template', pool_name)
+    end
 
-      begin
-        $logger.log('d', "[ ] [#{pool_name}] Starting to clone '#{new_vmname}'")
-        start = Time.now
-        provider.create_vm(pool_name, new_vmname)
-        finish = format('%.2f', Time.now - start)
+    def _clone_vm(pool, provider)
+      pool_name = pool['name']
+      add_vm_to_inventory(pool_name, new_vmname)
+      $logger.log('d', "[ ] [#{pool_name}] Starting to clone '#{new_vmname}'")
+      start = Time.now
+      provider.create_vm(pool_name, new_vmname)
+      finish = format('%.2f', Time.now - start)
 
-        $redis.hset('vmpooler__clone__' + Date.today.to_s, pool_name + ':' + new_vmname, finish)
-        $redis.hset('vmpooler__vm__' + new_vmname, 'clone_time', finish)
-        $logger.log('s', "[+] [#{pool_name}] '#{new_vmname}' cloned in #{finish} seconds")
+      $redis.hset('vmpooler__clone__' + Date.today.to_s, pool_name + ':' + new_vmname, finish)
+      $redis.hset('vmpooler__vm__' + new_vmname, 'clone_time', finish)
+      $logger.log('s', "[+] [#{pool_name}] '#{new_vmname}' cloned in #{finish} seconds")
 
-        $metrics.timing("clone.#{pool_name}", finish)
-      rescue => _err
-        $redis.srem('vmpooler__pending__' + pool_name, new_vmname)
-        raise _err
-      ensure
-        $redis.decr('vmpooler__tasks__clone')
-      end
+      $metrics.timing("clone.#{pool_name}", finish)
+    rescue => _err
+      $redis.srem('vmpooler__pending__' + pool_name, new_vmname)
+      raise _err
+    ensure
+      $redis.decr('vmpooler__tasks__clone')
     end
 
     # Destroy a VM
@@ -855,7 +865,7 @@ module Vmpooler
 
         if total < pool['size']
           (1..(pool['size'] - total)).each do |_i|
-            if $redis.get('vmpooler__tasks__clone').to_i < $config[:config]['task_limit'].to_i
+            if task_available?
               begin
                 $redis.incr('vmpooler__tasks__clone')
                 pool_check_response[:cloned_vms] += 1
