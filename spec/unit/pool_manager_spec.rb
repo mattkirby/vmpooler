@@ -2774,20 +2774,23 @@ EOT
         expect(redis.sismember("vmpooler__completed__#{pool}", new_vm)).to be(true)
       end
 
-      ['running','ready','pending','completed','discovered','migrating'].each do |queue_name|
-        it "should not discover VMs in the #{queue_name} queue" do
+      context 'with a VM that is in a pool' do
+        it 'should not discover the VM' do
+          redis.sadd("vmpooler__ready__#{pool}", new_vm)
           expect(logger).to receive(:log).with('s', "[?] [#{pool}] '#{new_vm}' added to 'discovered' queue").exactly(0).times
-          expect(redis.sismember("vmpooler__discovered__#{pool}", new_vm)).to be(false)
-          redis.sadd("vmpooler__#{queue_name}__#{pool}", new_vm)
+          expect(subject).to receive(:vm_in_queue?).and_return(true)
+
+          subject._check_pool(pool_object,provider)
+        end
+      end
+
+      context 'with a discovered VM' do
+        it 'should move the VM to the completed queue' do
+          redis.sadd("vmpooler__discovered__#{pool}", new_vm)
 
           subject._check_pool(pool_object,provider)
 
-          if queue_name == 'discovered'
-            # Discovered VMs end up in the completed queue
-            expect(redis.sismember("vmpooler__completed__#{pool}", new_vm)).to be(true)
-          else
-            expect(redis.sismember("vmpooler__#{queue_name}__#{pool}", new_vm)).to be(true)
-          end
+          expect(redis.sismember("vmpooler__completed__#{pool}", new_vm)).to be(true)
         end
       end
     end
@@ -3036,13 +3039,11 @@ EOT
         end
 
         it 'should remove redis information' do
-          expect(redis.sismember("vmpooler__completed__#{pool}",vm)).to be(true)
           expect(redis.hget("vmpooler__vm__#{vm}", 'checkout')).to_not be(nil)
           expect(redis.hget("vmpooler__active__#{pool}",vm)).to_not be(nil)
 
           subject._check_pool(pool_object,provider)
 
-          expect(redis.sismember("vmpooler__completed__#{pool}",vm)).to be(false)
           expect(redis.hget("vmpooler__vm__#{vm}", 'checkout')).to be(nil)
           expect(redis.hget("vmpooler__active__#{pool}",vm)).to be(nil)
         end
@@ -3089,21 +3090,6 @@ EOT
             expect(redis.sismember("vmpooler__#{queue_name}__#{pool}", vm)).to be(true)
           end
 
-          it "should be removed from the discovered queue" do
-            redis.sadd("vmpooler__#{queue_name}__#{pool}", vm)
-            allow(logger).to receive(:log)
-
-            expect(redis.sismember("vmpooler__discovered__#{pool}", vm)).to be(true)
-            subject._check_pool(pool_object,provider)
-            expect(redis.sismember("vmpooler__discovered__#{pool}", vm)).to be(false)
-          end
-
-          it "should log a message" do
-            redis.sadd("vmpooler__#{queue_name}__#{pool}", vm)
-            expect(logger).to receive(:log).with('d', "[!] [#{pool}] '#{vm}' found in '#{queue_name}', removed from 'discovered' queue")
-
-            subject._check_pool(pool_object,provider)
-          end
         end
       end
     end
