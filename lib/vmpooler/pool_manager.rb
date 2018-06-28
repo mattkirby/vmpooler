@@ -690,17 +690,12 @@ module Vmpooler
     end
 
     def check_pool_inventory(pool, provider, pool_check_response)
-#     last_checked = $redis.hget("vmpooler__pool__#{pool['name']}", 'last_checked')
-#     check_frequency = Integer($config[:config]['check_pool_inventory_frequency']) || 60
-#     unless last_checked.nil?
-#       return if check_frequency > Time.parse(last_checked)
-#     end
       mutex = pool_mutex(pool['name'])
       mutex.synchronize do
         $redis.hset("vmpooler__pool__#{pool['name']}", 'last_checked', Time.now)
         inventory = {}
         provider.vms_in_pool(pool['name']).each do |vm|
-          unless vm_in_queue?(pool['name'], vm)
+          unless vm_in_queue?(pool['name'], vm['name'])
 
             pool_check_response[:discovered_vms] += 1
             $redis.sadd('vmpooler__discovered__' + pool['name'], vm['name'])
