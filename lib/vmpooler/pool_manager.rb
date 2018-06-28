@@ -152,17 +152,26 @@ module Vmpooler
       mutex = vm_mutex(vm)
       return if mutex.locked?
       mutex.synchronize do
-        host = provider.get_vm(pool, vm)
+        # Check that VM is within defined lifetime
+        checkouttime = $redis.hget('vmpooler__active__' + pool, vm)
+        if checkouttime
+          running = (Time.now - Time.parse(checkouttime)) / 60 / 60
 
-        if host
-          # Check that VM is within defined lifetime
-          checkouttime = $redis.hget('vmpooler__active__' + pool, vm)
-          if checkouttime
-            running = (Time.now - Time.parse(checkouttime)) / 60 / 60
+          if (ttl.to_i > 0) && (running.to_i >= ttl.to_i)
+            move_vm_queue(pool, vm, 'running', 'completed', "reached end of TTL after #{ttl} hours")
+            return
+          end
+        end
 
-            if (ttl.to_i > 0) && (running.to_i >= ttl.to_i)
-              move_vm_queue(pool, vm, 'running', 'completed', "reached end of TTL after #{ttl} hours")
-            end
+        if provider.vm_ready?(pool, vm)
+          return
+        else
+          host = provider.get_vm(pool, vm)
+
+          if host
+            return
+          else
+            move_vm_queue(pool, vm, 'running', 'completed', "is no longer in inventory, removing from running")
           end
         end
       end
