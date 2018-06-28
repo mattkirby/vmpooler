@@ -683,6 +683,7 @@ module Vmpooler
     def vm_in_queue?(pool_name, vm_name)
       return true if $redis.sismember("vmpooler__running__#{pool_name}", vm_name)
       return true if $redis.sismember("vmpooler__pending__#{pool_name}", vm_name)
+      return true if $redis.sismember("vmpooler__ready__#{pool_name}", vm_name)
       return true if $redis.sismember("vmpooler__completed__#{pool_name}", vm_name)
       return true if $redis.sismember("vmpooler__discovered__#{pool_name}", vm_name)
       return true if $redis.sismember("vmpooler__migrating__#{pool_name}", vm_name)
