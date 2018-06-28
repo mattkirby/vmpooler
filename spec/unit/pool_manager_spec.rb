@@ -389,32 +389,24 @@ EOT
       allow(provider).to receive(:get_vm).with(pool,vm).and_return(host)
     end
 
-    it 'does nothing with a missing VM' do
+    it 'moves a missing VM to the completed queue' do
+      expect(provider).to receive(:vm_ready?).and_return(false)
       expect(provider).to receive(:get_vm).with(pool,vm).and_return(nil)
       expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(true)
       subject._check_running_vm(vm, pool, timeout, provider)
-      expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(true)
+      expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(false)
     end
 
     context 'valid host' do
-     it 'should not move VM when not poweredOn' do
-        # I'm not sure this test is useful.  There is no codepath
-        # in _check_running_vm that looks at Power State
-        host['powerstate'] = 'PoweredOff'
-
-        expect(logger).not_to receive(:log).with('d', "[!] [#{pool}] '#{vm}' appears to be powered off or dead")
-        expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(true)
-        subject._check_running_vm(vm, pool, timeout, provider)
-        expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(true)
-      end
-
       it 'should not move VM if it has no checkout time' do
+        expect(provider).to receive(:vm_ready?).and_return(true)
         expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(true)
         subject._check_running_vm(vm, pool, 0, provider)
         expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(true)
       end
 
       it 'should not move VM if TTL is zero' do
+        expect(provider).to receive(:vm_ready?).and_return(true)
         redis.hset("vmpooler__active__#{pool}", vm,(Time.now - timeout*60*60).to_s)
         expect(redis.sismember("vmpooler__running__#{pool}", vm)).to be(true)
         subject._check_running_vm(vm, pool, 0, provider)
