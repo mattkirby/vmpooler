@@ -848,7 +848,12 @@ module Vmpooler
       # DISCOVERED
       begin
         $redis.smembers("vmpooler__discovered__#{pool['name']}").each do |vm|
-          $redis.smove("vmpooler__discovered__#{pool['name']}", "vmpooler__completed__#{pool['name']}", vm)
+          if vm_in_queue?(pool['name'], vm)
+            $logger.log('d', "[!] [#{pool['name']}] '#{vm}' found in '#{queue}', removed from 'discovered' queue")
+            $redis.srem("vmpooler__discovered__#{pool['name']}", vm)
+          else
+            $redis.smove("vmpooler__discovered__#{pool['name']}", "vmpooler__completed__#{pool['name']}", vm)
+          end
         end
       rescue => err
         $logger.log('d', "[!] [#{pool['name']}] _check_pool failed with an error while evaluating discovered VMs: #{err}")
