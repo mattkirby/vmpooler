@@ -78,11 +78,13 @@ module Vmpooler
             end
 
             vms.each do |vm_name, vm_object|
-              destroy_vm_and_log(vm_name, vm_object, folder_name)
+              #destroy_vm_and_log(vm_name, vm_object, folder_name)
+              $logger.log('s', "[-] Would destroy vm #{vm_name}")
             end
           end
           logger.log('s', "[-] [#{folder_name}] removing unconfigured folder")
-          folder_object.Destroy_Task.wait_for_completion
+          #folder_object.Destroy_Task.wait_for_completion
+          $logger.log('s', "[-] Would destroy folder #{folder_name}")
         end
 
         def purge_unconfigured_folders(base_folders, configured_folders, whitelist)
