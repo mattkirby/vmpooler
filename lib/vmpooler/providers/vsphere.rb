@@ -42,6 +42,86 @@ module Vmpooler
           'vsphere'
         end
 
+        def folder_configured?(folder_title, base_folder, configured_folders, whitelist)
+          if whitelist
+            return true if whitelist.include?(folder_title)
+          end
+          return false unless configured_folders.keys.include?(folder_title)
+          return false unless configured_folders[folder_title] == base_folder
+          return true
+        end
+
+        def destroy_vm_and_log(vm_name, vm_object, pool)
+          $redis.srem("vmpooler__completed__#{pool}", vm)
+          $redis.hdel("vmpooler__active__#{pool}", vm)
+          $redis.hset("vmpooler__vm__#{vm}", 'destroy', Time.now)
+
+          # Auto-expire metadata key
+          $redis.expire('vmpooler__vm__' + vm, ($config[:redis]['data_ttl'].to_i * 60 * 60))
+
+          start = Time.now
+
+          vm_object.PowerOffVM_Task.wait_for_completion if vm_object.runtime && vm_object.runtime.powerState && vm_object.runtime.powerState == 'poweredOn'
+          vm_object.Destroy_Task.wait_for_completion
+
+          finish = format('%.2f', Time.now - start)
+          $logger.log('s', "[-] [#{pool}] '#{vm}' destroyed in #{finish} seconds")
+          $metrics.timing("destroy.#{pool}", finish)
+        end
+
+        def destroy_folder_and_children(folder_object)
+          vms = {}
+          folder_name = folder_object.name
+          unless folder_object.childEntity.count == 0
+            folder_object.childEntity.each do |vm|
+              vms[vm.name] = vm
+            end
+
+            vms.each do |vm_name, vm_object|
+              destroy_vm_and_log(vm_name, vm_object, folder_name)
+            end
+          end
+          logger.log('s', "[#{folder_name}] removing unconfigured folder")
+          folder_object.Destroy_Task.wait_for_completion
+        end
+
+        def purge_unconfigured_folders(base_folders, configured_folders, whitelist)
+          @connection_pool.with_metrics do |pool_object|
+            connection = ensured_vsphere_connection(pool_object)
+
+            base_folders.each do |base_folder|
+              datacenter = base_folder.split('/').first
+              folder_children = get_folder_children(base_folder, datacenter, connection)
+              unless folder_children.empty?
+                folder_children.each do |folder_title, folder_object|
+                  unless folder_configured?(folder_title, base_folder, configured_folders, whitelist)
+                    destroy_folder_and_children(folder_object)
+                  end
+                end
+              end
+            end
+          end
+        end
+
+        def get_folder_children(folder_name, datacenter, connection)
+          folders = []
+
+          propSpecs = {
+            :entity => self,
+            :inventoryPath => "#{datacenter}/vm/#{folder_name}"
+          }
+          folder_object = connection.searchIndex.FindByInventoryPath(propSpecs)
+
+          return folders if folder_object.nil?
+
+          folder_object.childEntity.each do |folder|
+            next unless folder.class == RbVmomi::VIM::Folder
+            folders << { folder.name => folder }
+          end
+
+          folders
+        end
+
         def vms_in_pool(pool_name)
           vms = []
           @connection_pool.with_metrics do |pool_object|
