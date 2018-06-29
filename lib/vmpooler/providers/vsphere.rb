@@ -52,12 +52,12 @@ module Vmpooler
         end
 
         def destroy_vm_and_log(vm_name, vm_object, pool)
-          $redis.srem("vmpooler__completed__#{pool}", vm)
-          $redis.hdel("vmpooler__active__#{pool}", vm)
-          $redis.hset("vmpooler__vm__#{vm}", 'destroy', Time.now)
+          $redis.srem("vmpooler__completed__#{pool}", vm_name)
+          $redis.hdel("vmpooler__active__#{pool}", vm_name)
+          $redis.hset("vmpooler__vm__#{vm_name}", 'destroy', Time.now)
 
           # Auto-expire metadata key
-          $redis.expire('vmpooler__vm__' + vm, ($config[:redis]['data_ttl'].to_i * 60 * 60))
+          $redis.expire('vmpooler__vm__' + vm_name, ($config[:redis]['data_ttl'].to_i * 60 * 60))
 
           start = Time.now
 
@@ -65,7 +65,7 @@ module Vmpooler
           vm_object.Destroy_Task.wait_for_completion
 
           finish = format('%.2f', Time.now - start)
-          $logger.log('s', "[-] [#{pool}] '#{vm}' destroyed in #{finish} seconds")
+          $logger.log('s', "[-] [#{pool}] '#{vm_name}' destroyed in #{finish} seconds")
           $metrics.timing("destroy.#{pool}", finish)
         end
 
@@ -81,7 +81,7 @@ module Vmpooler
               destroy_vm_and_log(vm_name, vm_object, folder_name)
             end
           end
-          logger.log('s', "[#{folder_name}] removing unconfigured folder")
+          logger.log('s', "[-] [#{folder_name}] removing unconfigured folder")
           folder_object.Destroy_Task.wait_for_completion
         end
 
@@ -90,12 +90,13 @@ module Vmpooler
             connection = ensured_vsphere_connection(pool_object)
 
             base_folders.each do |base_folder|
-              datacenter = base_folder.split('/').first
-              folder_children = get_folder_children(base_folder, datacenter, connection)
+              folder_children = get_folder_children(base_folder, connection)
               unless folder_children.empty?
-                folder_children.each do |folder_title, folder_object|
-                  unless folder_configured?(folder_title, base_folder, configured_folders, whitelist)
-                    destroy_folder_and_children(folder_object)
+                folder_children.each do |folder_hash|
+                  folder_hash.each do |folder_title, folder_object|
+                    unless folder_configured?(folder_title, base_folder, configured_folders, whitelist)
+                      destroy_folder_and_children(folder_object)
+                    end
                   end
                 end
               end
@@ -103,12 +104,12 @@ module Vmpooler
           end
         end
 
-        def get_folder_children(folder_name, datacenter, connection)
+        def get_folder_children(folder_name, connection)
           folders = []
 
           propSpecs = {
             :entity => self,
-            :inventoryPath => "#{datacenter}/vm/#{folder_name}"
+            :inventoryPath => folder_name
           }
           folder_object = connection.searchIndex.FindByInventoryPath(propSpecs)
 
