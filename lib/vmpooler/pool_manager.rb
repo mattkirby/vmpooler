@@ -148,6 +148,7 @@ module Vmpooler
       vm_hash = provider.get_vm(pool['name'], vm)
       hostname = vm_hash['hostname']
 
+      return if hostname.nil?
       return if hostname.empty?
       return if hostname == vm
       $redis.smove('vmpooler__ready__' + pool['name'], 'vmpooler__completed__' + pool['name'], vm)
