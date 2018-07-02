@@ -52,6 +52,8 @@ module Vmpooler
         end
 
         def destroy_vm_and_log(vm_name, vm_object, pool)
+          try = 1
+          max_tries = 3
           $redis.srem("vmpooler__completed__#{pool}", vm_name)
           $redis.hdel("vmpooler__active__#{pool}", vm_name)
           $redis.hset("vmpooler__vm__#{vm_name}", 'destroy', Time.now)
@@ -67,6 +69,11 @@ module Vmpooler
           finish = format('%.2f', Time.now - start)
           $logger.log('s', "[-] [#{pool}] '#{vm_name}' destroyed in #{finish} seconds")
           $metrics.timing("destroy.#{pool}", finish)
+        rescue => err
+          $logger.log('s', "[!] [#{pool}] failed to destroy '#{vm_name}' with an error: #{err}")
+          raise err if try >= max_tries
+          tries += 1
+          retry
         end
 
         def destroy_folder_and_children(folder_object)
@@ -81,8 +88,18 @@ module Vmpooler
               destroy_vm_and_log(vm_name, vm_object, folder_name)
             end
           end
+          destroy_folder(folder_object)
+        end
+
+        def destroy_folder(folder_object)
+          try = 1
+          max_tries = 3
           logger.log('s', "[-] [#{folder_name}] removing unconfigured folder")
           folder_object.Destroy_Task.wait_for_completion
+        rescue => err
+          raise err if try >= max_tries
+          try += 1
+          retry
         end
 
         def purge_unconfigured_folders(base_folders, configured_folders, whitelist)
