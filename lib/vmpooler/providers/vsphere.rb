@@ -63,6 +63,10 @@ module Vmpooler
 
           start = Time.now
 
+          if vm_object.class == RbVmomi::VIM::Folder
+            $logger.log('s', "[!] [#{pool}] '#{vm_name}' is a folder, bailing on destroying")
+            raise('Expected VM, but received a folder object')
+          end
           vm_object.PowerOffVM_Task.wait_for_completion if vm_object.runtime && vm_object.runtime.powerState && vm_object.runtime.powerState == 'poweredOn'
           vm_object.Destroy_Task.wait_for_completion
 
