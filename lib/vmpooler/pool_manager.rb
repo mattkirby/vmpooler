@@ -151,6 +151,7 @@ module Vmpooler
       return if hostname.nil?
       return if hostname.empty?
       return if hostname == vm
+      $logger.log('s', "[!] [#{pool['name']}] '#{vm}' got hostname #{hostname}")
       $redis.smove('vmpooler__ready__' + pool['name'], 'vmpooler__completed__' + pool['name'], vm)
       $logger.log('d', "[!] [#{pool['name']}] '#{vm}' has mismatched hostname, removed from 'ready' queue")
       return true
