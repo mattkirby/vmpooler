@@ -113,7 +113,9 @@ module Vmpooler
 
             base_folders.each do |base_folder|
               folder_children = get_folder_children(base_folder, connection)
+              puts 'reached folder children'
               unless folder_children.empty?
+                puts 'folder_children not empty'
                 folder_children.each do |folder_hash|
                   folder_hash.each do |folder_title, folder_object|
                     unless folder_configured?(folder_title, base_folder, configured_folders, whitelist)
@@ -123,6 +125,7 @@ module Vmpooler
                 end
               end
             end
+            return
           end
         end
 
