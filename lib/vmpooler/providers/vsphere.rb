@@ -161,6 +161,8 @@ module Vmpooler
             end
           end
           vms
+        rescue => err
+          raise("Failed while running vms_in_pool with an error: #{err}")
         end
 
         def select_target_hosts(target, cluster, datacenter)
