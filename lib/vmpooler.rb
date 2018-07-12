@@ -1,5 +1,3 @@
-require 'rubygems' unless defined?(Gem)
-
 module Vmpooler
   require 'date'
   require 'json'
