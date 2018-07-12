@@ -328,7 +328,7 @@ module Vmpooler
           $logger.log('s', "will purge provider #{provider}")
           Thread.new do
             begin
-              purge_vms_and_folders($providers[provider.to_s])
+              purge_vms_and_folders($providers[provider.to_s], provider)
             rescue => err
               $logger.log('s', "[!] failed while purging provider #{provider.to_s} VMs and folders with an error: #{err}")
             end
@@ -359,9 +359,7 @@ module Vmpooler
       base.uniq
     end
 
-    def purge_vms_and_folders(provider)
-      $logger.log('s', 'getting provider name')
-      provider_name = provider.name
+    def purge_vms_and_folders(provider, provider_name)
       $logger.log('s', "getting configured folders for #{provider_name}")
       configured_folders = pool_folders(provider)
       $logger.log('s', 'getting base folders')
@@ -369,7 +367,7 @@ module Vmpooler
       $logger.log('s', 'getting whitelist')
       $logger.log('s', "#{provider.provider_config}")
       $logger.log('s', "#{provider}")
-      whitelist = $config[:providers][provider_name.to_sym]['folder_whitelist']
+      whitelist = provider.provider_config['folder_whitelist']
       $logger.log('s', 'purging folders')
       provider.purge_unconfigured_folders(base_folders, configured_folders, whitelist)
     end
