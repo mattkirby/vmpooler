@@ -14,11 +14,7 @@ module Vmpooler
   require 'set'
 
   %w[api graphite logger pool_manager statsd dummy_statsd generic_connection_pool providers].each do |lib|
-    begin
-      require "vmpooler/#{lib}"
-    rescue LoadError
-      require File.expand_path(File.join(File.dirname(__FILE__), 'vmpooler', lib))
-    end
+    require "vmpooler/#{lib}"
   end
 
   def self.config(filepath = 'vmpooler.yaml')
