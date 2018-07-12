@@ -316,19 +316,15 @@ module Vmpooler
     end
 
     def purge_unused_vms_and_folders
-      $logger.log('s', 'checking global purge')
       global_purge = $config[:config]['purge_unconfigured_folders']
-      $logger.log('s', 'checking provider purge')
       providers = $config[:providers].keys
       providers.each do |provider|
-        $logger.log('s', "checking provider #{provider}")
         provider_purge = $config[:providers][provider]['purge_unconfigured_folders']
         provider_purge = global_purge if provider_purge.nil?
         if provider_purge
-          $logger.log('s', "will purge provider #{provider}")
           Thread.new do
             begin
-              purge_vms_and_folders($providers[provider.to_s], provider)
+              purge_vms_and_folders($providers[provider.to_s])
             rescue => err
               $logger.log('s', "[!] failed while purging provider #{provider.to_s} VMs and folders with an error: #{err}")
             end
@@ -359,16 +355,10 @@ module Vmpooler
       base.uniq
     end
 
-    def purge_vms_and_folders(provider, provider_name)
-      $logger.log('s', "getting configured folders for #{provider_name}")
+    def purge_vms_and_folders(provider)
       configured_folders = pool_folders(provider)
-      $logger.log('s', 'getting base folders')
       base_folders = get_base_folders(configured_folders)
-      $logger.log('s', 'getting whitelist')
-      $logger.log('s', "#{provider.provider_config}")
-      $logger.log('s', "#{provider}")
       whitelist = provider.provider_config['folder_whitelist']
-      $logger.log('s', 'purging folders')
       provider.purge_unconfigured_folders(base_folders, configured_folders, whitelist)
     end
 
