@@ -316,12 +316,16 @@ module Vmpooler
     end
 
     def purge_unused_vms_and_folders
+      $logger.log('s', 'checking global purge')
       global_purge = $config[:config]['purge_unconfigured_folders']
+      $logger.log('s', 'checking provider purge')
       providers = $config[:providers].keys
       providers.each do |provider|
+        $logger.log('s', "checking provider #{provider}")
         provider_purge = $config[:providers][provider]['purge_unconfigured_folders']
         provider_purge = global_purge if provider_purge.nil?
         if provider_purge
+          $logger.log('s', "will purge provider #{provider}")
           Thread.new do
             begin
               purge_vms_and_folders($providers[provider.to_s])
