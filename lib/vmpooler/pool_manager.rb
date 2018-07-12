@@ -368,6 +368,7 @@ module Vmpooler
       base_folders = get_base_folders(configured_folders)
       $logger.log('s', 'getting whitelist')
       $logger.log('s', "#{provider.provider_config}")
+      $logger.log('s', "#{provider}")
       whitelist = $config[:providers][provider_name.to_sym]['folder_whitelist']
       $logger.log('s', 'purging folders')
       provider.purge_unconfigured_folders(base_folders, configured_folders, whitelist)
